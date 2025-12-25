@@ -1,0 +1,214 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+  color: #1f2937;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start; /* avoid vertical centering that can hinder scrolling */
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto; /* ensure page scrolls when content is taller than viewport */
+}
+
+#root {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.app {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.container {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  padding: 40px;
+  max-width: 900px;
+  width: 100%;
+  max-height: 85vh; /* keep UI within viewport and allow internal scroll */
+  overflow-y: auto;
+}
+
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.subtitle {
+  color: #6b7280;
+  margin: 0 0 24px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.instructions {
+  background: #f3f4f6;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.instructions h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+
+.instructions ol {
+  margin-left: 20px;
+}
+
+.instructions li {
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.button-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.button {
+  appearance: none;
+  border: none;
+  background: #0077b5;
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+  padding: 14px 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 119, 181, 0.3);
+  transition: all 0.2s ease;
+}
+
+.button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 119, 181, 0.4);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.result {
+  margin-top: 24px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.error {
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 12px;
+}
+
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #f3f4f6;
+  padding: 16px;
+  border-radius: 8px;
+  overflow: auto;
+  max-height: 400px;
+}
+
+.url {
+  color: #0077b5;
+  background: #eef6fb;
+  padding: 8px 12px;
+  border-radius: 8px;
+  display: inline-block;
+  font-family: monospace;
+}
+
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-left: 10px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+h2 {
+  margin: 0 0 16px;
+  font-size: 24px;
+}
+
+h3 {
+  margin: 16px 0 8px;
+  font-size: 20px;
+}
+
+strong {
+  color: #374151;
+}
+
+details {
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+details summary {
+  font-weight: 600;
+  color: #0077b5;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+details summary:hover {
+  background: #f3f4f6;
+}
+
+@media (max-width: 640px) {
+  .container {
+    padding: 24px;
+  }
+  
+  .title {
+    font-size: 24px;
+  }
+  
+  .button-group {
+    flex-direction: column;
+  }
+  
+  .button {
+    width: 100%;
+  }
+}
+
