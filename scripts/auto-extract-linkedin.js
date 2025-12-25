@@ -359,7 +359,15 @@ async function extractLinkedInData() {
             
             const expKey = `${experience.title}|${experience.company}|${experience.duration}`.toLowerCase();
             
-            if ((experience.title || experience.company) && !seenExperiences.has(expKey)) {
+            // Filter out "who viewed me" and "who your viewers also viewed" entries
+            const isViewerData = 
+              experience.title.startsWith('Someone at') ||
+              experience.company.startsWith('Someone at') ||
+              experience.title.includes('…') || // Truncated viewer entries
+              (experience.title.match(/\bat\b/i) && !experience.company && !experience.duration) || // "Job Title at Company" with no separate company/date
+              (!experience.duration && !experience.company && experience.title); // Only title, no dates or company (viewer data pattern)
+            
+            if ((experience.title || experience.company) && !seenExperiences.has(expKey) && !isViewerData) {
               data.experience.push(experience);
               seenExperiences.add(expKey);
             }

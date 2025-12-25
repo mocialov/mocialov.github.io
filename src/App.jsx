@@ -10,6 +10,21 @@ function App() {
   const [browserOpen, setBrowserOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
 
+  // Filter out "Who viewed me" / "Who your viewers also viewed" data
+  const filterViewerData = (experiences) => {
+    if (!experiences) return [];
+    return experiences.filter(exp => {
+      const isViewerData = 
+        exp.title?.startsWith('Someone at') ||
+        exp.company?.startsWith('Someone at') ||
+        exp.title?.includes('…') ||
+        exp.title?.includes('...') ||
+        (exp.title?.match(/\bat\b/i) && !exp.company && !exp.dates && !exp.duration) ||
+        ((!exp.dates && !exp.duration) && !exp.company && exp.title);
+      return !isViewerData;
+    });
+  };
+
   const startBrowser = async () => {
     setLoading(true);
     setStatus('Opening browser...');
@@ -107,7 +122,16 @@ function App() {
   };
 
   const downloadData = () => {
-    const dataStr = JSON.stringify(linkedinData, null, 2);
+    // Filter out viewer data before downloading
+    const filteredData = { 
+      ...linkedinData,
+      experience: filterViewerData(linkedinData.experience)
+    };
+    
+    console.log(`Filtered ${linkedinData.experience.length - filteredData.experience.length} viewer entries`);
+    console.log(`Final count: ${filteredData.experience.length} experiences`);
+    
+    const dataStr = JSON.stringify(filteredData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -210,7 +234,7 @@ function App() {
           <div style={{marginBottom: 16, padding: 12, background: '#f3f4f6', borderRadius: 4}}>
             <strong>Statistics:</strong>
             <ul style={{marginTop: 8}}>
-              <li>Experience: {linkedinData.experience?.length || 0} entries</li>
+              <li>Experience: {filterViewerData(linkedinData.experience).length} entries</li>
               <li>Education: {linkedinData.education?.length || 0} entries</li>
               <li>Skills: {linkedinData.skills?.length || 0} skills</li>
               <li>Certifications: {linkedinData.certifications?.length || 0} certs</li>
@@ -220,7 +244,7 @@ function App() {
           {linkedinData.experience && linkedinData.experience.length > 0 && (
             <div style={{marginBottom: 16}}>
               <strong>💼 Experience:</strong>
-              {linkedinData.experience.map((exp, i) => (
+              {filterViewerData(linkedinData.experience).map((exp, i) => (
                 <div key={i} style={{marginTop: 12, padding: 12, background: '#f9f9f9', borderRadius: 4}}>
                   <div style={{fontWeight: 600}}>{exp.title}</div>
                   <div style={{color: '#666'}}>{exp.company}</div>

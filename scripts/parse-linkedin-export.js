@@ -55,6 +55,8 @@ function parseLinkedInExport(exportPath) {
       const lines = content.split('\n');
       const headers = parseCSVLine(lines[0]);
       
+      let filteredCount = 0;
+      
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line) {
@@ -64,14 +66,38 @@ function parseLinkedInExport(exportPath) {
             position[header] = values[index] || '';
           });
           
-          profileData.experience.push({
-            title: position['Title'] || position['Position Title'] || '',
-            company: position['Company Name'] || '',
-            duration: `${position['Started On'] || ''} - ${position['Finished On'] || 'Present'}`,
-            location: position['Location'] || '',
-            description: position['Description'] || '',
-          });
+          const title = position['Title'] || position['Position Title'] || '';
+          const company = position['Company Name'] || '';
+          const startDate = position['Started On'] || '';
+          const endDate = position['Finished On'] || '';
+          
+          // Filter out "who viewed me" and "who your viewers also viewed" entries
+          // These are viewer data that LinkedIn mistakenly includes in Positions.csv
+          const isViewerData = 
+            !title || // Empty title
+            title.startsWith('Someone at') || // "Someone at [Company]"
+            company.startsWith('Someone at') || // Company is "Someone at..."
+            title.includes('…') || // Truncated viewer entries with ellipsis
+            (title.match(/\bat\b/i) && !company && title.split(/\bat\b/i).length === 2) || // "Job Title at Company" format with no separate company field
+            (!startDate && !endDate && !company); // No dates AND no company (viewer data has none of these)
+          
+          if (isViewerData) {
+            filteredCount++;
+            console.log(`   ⚠️  Filtered viewer data: "${title}" (company: "${company}")`);
+          } else if (title) {
+            profileData.experience.push({
+              title: title,
+              company: company,
+              duration: `${startDate} - ${endDate || 'Present'}`,
+              location: position['Location'] || '',
+              description: position['Description'] || '',
+            });
+          }
         }
+      }
+      
+      if (filteredCount > 0) {
+        console.log(`   → Filtered out ${filteredCount} viewer data entries`);
       }
     }
     
