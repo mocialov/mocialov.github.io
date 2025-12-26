@@ -379,33 +379,101 @@ async function extractLinkedInData() {
 
       console.log(`   ✓ Extracted ${data.experience.length} experiences`);
 
+      // Expand and extract Education
+      async function expandEducationSection() {
+        console.log('🔧 Expanding Education section...');
+        
+        // Get current profile URL to construct education details URL
+        const currentUrl = window.location.href;
+        const profileMatch = currentUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
+        
+        if (!profileMatch) {
+          console.log('   ⚠️  Could not determine profile username');
+          return false;
+        }
+        
+        const username = profileMatch[1];
+        const educationDetailsUrl = `https://www.linkedin.com/in/${username}/details/education/`;
+        
+        console.log(`   → Navigating to: ${educationDetailsUrl}`);
+        window.location.href = educationDetailsUrl;
+        return true;
+      }
+      
+      // Try to expand education section
+      const navigatedToEducation = await expandEducationSection();
+      
+      if (navigatedToEducation) {
+        // Wait for navigation and page load
+        await new Promise(r => setTimeout(r, 5000));
+        
+        // Scroll to load all education entries
+        console.log('   → Scrolling to load all education...');
+        const mainContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+        if (mainContainer) {
+          let unchangedCount = 0;
+          let lastHeight = mainContainer.scrollHeight;
+          
+          for (let i = 0; i < 20; i++) {
+            mainContainer.scrollTop = mainContainer.scrollHeight;
+            await new Promise(r => setTimeout(r, 600));
+            
+            const newHeight = mainContainer.scrollHeight;
+            if (newHeight === lastHeight) {
+              unchangedCount++;
+              if (unchangedCount >= 3) break;
+            } else {
+              unchangedCount = 0;
+            }
+            lastHeight = newHeight;
+          }
+          
+          mainContainer.scrollTop = 0;
+        }
+        
+        console.log('   ✓ Finished loading education details');
+      }
+
       // Extract Education
       const eduSection = document.querySelector('#education');
       if (eduSection) {
         const eduContainer = eduSection.closest('section');
         if (eduContainer) {
-          const items = eduContainer.querySelectorAll('li.artdeco-list__item');
+          const items = eduContainer.querySelectorAll('li.artdeco-list__item, .pvs-list__item, li.pvs-list__paged-list-item');
+          
+          console.log(`   → Found ${items.length} education items`);
           
           items.forEach((item) => {
             try {
+              // Try structured extraction first (for details page)
+              const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]');
+              const degreeElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]');
+              const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+              const descElem = item.querySelector('.pvs-list__item--with-top-padding .visually-hidden + span[aria-hidden="true"]');
+              
+              // Fallback: Get all spans
               const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
                 .map(s => s.textContent.trim())
                 .filter(t => t && t.length > 0);
               
               const education = {
-                school: allSpans[0] || '',
-                degree: allSpans[1] || '',
+                school: schoolElem?.textContent?.trim() || allSpans[0] || '',
+                degree: degreeElem?.textContent?.trim() || allSpans[1] || '',
                 field: allSpans[2] || '',
                 duration: '',
-                description: ''
+                description: descElem?.textContent?.trim() || ''
               };
               
-              const durationSpan = allSpans.find(s => /\d{4}/.test(s));
+              // Find duration (year pattern)
+              const durationSpan = dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}/.test(s));
               if (durationSpan) education.duration = durationSpan;
               
-              const descElem = item.querySelector('.inline-show-more-text');
-              if (descElem) {
-                education.description = descElem.textContent.trim();
+              // Try alternative description selector
+              if (!education.description) {
+                const descElemAlt = item.querySelector('.inline-show-more-text');
+                if (descElemAlt) {
+                  education.description = descElemAlt.textContent.trim();
+                }
               }
               
               if (education.school) {

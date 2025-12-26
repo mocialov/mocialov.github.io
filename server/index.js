@@ -171,6 +171,7 @@ app.post('/api/scrape-profile', async (req, res) => {
     
     // Extract experiences from details page FIRST (if we navigated there)
     let allExperiences = [];
+    let allEducation = [];
     if (navigatedToDetails) {
       console.log('📊 Extracting experiences from details page...');
       allExperiences = await page.evaluate(() => {
@@ -206,6 +207,86 @@ app.post('/api/scrape-profile', async (req, res) => {
       });
       
       // Navigate BACK to main profile page
+      console.log('🔙 Navigating back to main profile page...');
+      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+
+    // Navigate to education details page
+    console.log('🔧 Expanding ALL education (navigating to details/education/)...');
+    const profileMatch = profileUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
+    if (profileMatch) {
+      const username = profileMatch[1];
+      const educationUrl = `https://www.linkedin.com/in/${username}/details/education/`;
+      
+      console.log(`   → Navigating to: ${educationUrl}`);
+      await page.goto(educationUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await new Promise(r => setTimeout(r, 3000));
+      
+      // Scroll to load all education
+      console.log('   → Scrolling to load all education...');
+      await page.evaluate(async () => {
+        const main = document.querySelector('main');
+        if (main) {
+          for (let i = 0; i < 10; i++) {
+            main.scrollTop = main.scrollHeight;
+            await new Promise(r => setTimeout(r, 500));
+          }
+        }
+      });
+      
+      console.log('   ✓ Education details page loaded');
+      
+      // Extract ALL education from details page
+      allEducation = await page.evaluate(() => {
+        const education = [];
+        
+        // Only select items from the main content area, not from "Who viewed" sidebar
+        const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        const items = mainContent.querySelectorAll('.pvs-list__item--line-separated, li.pvs-list__paged-list-item');
+        
+        items.forEach((item) => {
+          try {
+            const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]');
+            const degreeElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]');
+            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+            
+            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+              .map(s => s.textContent.trim())
+              .filter(t => t && t.length > 0);
+            
+            const edu = {
+              school: schoolElem?.textContent?.trim() || allSpans[0] || '',
+              degree: degreeElem?.textContent?.trim() || allSpans[1] || '',
+              field: allSpans[2] || '',
+              duration: dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}/.test(s)) || '',
+              description: ''
+            };
+            
+            // Filter out viewer data (same logic as experiences)
+            const isViewerData = 
+              edu.school.startsWith('Someone at') ||
+              edu.degree.startsWith('Someone at') ||
+              edu.school.includes('…') ||
+              edu.school.includes('...') ||
+              (edu.school.match(/\bat\b/i) && !edu.degree && !edu.duration) ||
+              (!edu.duration && !edu.degree && edu.school);
+            
+            if (edu.school && !isViewerData) {
+              education.push(edu);
+            }
+          } catch (e) {
+            // Ignore
+          }
+        });
+        
+        return education;
+      });
+      
+      console.log(`   ✓ Extracted ${allEducation.length} education entries from details page`);
+      
+      // Navigate back to profile
       console.log('🔙 Navigating back to main profile page...');
       await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await new Promise(r => setTimeout(r, 2000));
@@ -524,6 +605,12 @@ app.post('/api/scrape-profile', async (req, res) => {
     if (allExperiences.length > 0) {
       data.experience = allExperiences;
       console.log(`✅ Using ${allExperiences.length} experiences from details page`);
+    }
+
+    // Replace the education data with what we extracted from the details page
+    if (allEducation && allEducation.length > 0) {
+      data.education = allEducation;
+      console.log(`✅ Using ${allEducation.length} education entries from details page`);
     }
 
     console.log('✅ Data extraction complete!');
