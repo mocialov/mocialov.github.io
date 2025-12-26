@@ -208,87 +208,109 @@ function App() {
 
       {linkedinData && (
         <div className="result">
-          <h2>📋 Extracted Data</h2>
-          
-          {linkedinData.image && (
-            <img src={linkedinData.image} alt="Profile" style={{width: 150, height: 150, borderRadius: '50%', objectFit: 'cover', margin: '16px 0'}} />
-          )}
-          
-          <div style={{marginBottom: 12}}>
-            <strong>Name:</strong> {linkedinData.name}
+          {/* SECTION 1: HEADER - Contact & Profile Summary */}
+          <div className="profile-header">
+            {linkedinData.image && (
+              <img src={linkedinData.image} alt="Profile" className="profile-photo" />
+            )}
+            <div className="profile-info">
+              <h1 className="profile-name">{linkedinData.name}</h1>
+              <div className="profile-headline">{linkedinData.headline}</div>
+              <div className="profile-location">📍 {linkedinData.location}</div>
+            </div>
           </div>
-          <div style={{marginBottom: 12}}>
-            <strong>Headline:</strong> {linkedinData.headline}
-          </div>
-          <div style={{marginBottom: 12}}>
-            <strong>Location:</strong> {linkedinData.location}
-          </div>
-          
+
+          {/* Professional Summary */}
           {linkedinData.about && (
-            <div style={{marginBottom: 16}}>
-              <strong>About:</strong>
-              <p style={{whiteSpace: 'pre-wrap', marginTop: 8, padding: 12, background: '#f9f9f9', borderRadius: 4}}>{linkedinData.about}</p>
+            <div className="section">
+              <h2 className="section-title">Professional Summary</h2>
+              <p className="about-text">{linkedinData.about}</p>
             </div>
           )}
 
-          <div style={{marginBottom: 16, padding: 12, background: '#f3f4f6', borderRadius: 4}}>
-            <strong>Statistics:</strong>
-            <ul style={{marginTop: 8}}>
-              <li>Experience: {filterViewerData(linkedinData.experience).length} entries</li>
-              <li>Education: {linkedinData.education?.length || 0} entries</li>
-              <li>Skills: {linkedinData.skills?.length || 0} skills</li>
-              <li>Certifications: {linkedinData.certifications?.length || 0} certs</li>
-            </ul>
-          </div>
-
-          {linkedinData.experience && linkedinData.experience.length > 0 && (
-            <div style={{marginBottom: 16}}>
-              <strong>💼 Experience:</strong>
-              {filterViewerData(linkedinData.experience).map((exp, i) => (
-                <div key={i} style={{marginTop: 12, padding: 12, background: '#f9f9f9', borderRadius: 4}}>
-                  <div style={{fontWeight: 600}}>{exp.title}</div>
-                  <div style={{color: '#666'}}>{exp.company}</div>
-                  <div style={{fontSize: 14, color: '#888'}}>{exp.duration} {exp.location && `• ${exp.location}`}</div>
-                  {exp.description && <div style={{marginTop: 8, fontSize: 14}}>{exp.description}</div>}
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {linkedinData.education && linkedinData.education.length > 0 && (
-            <div style={{marginBottom: 16}}>
-              <strong>🎓 Education:</strong>
-              {linkedinData.education.map((edu, i) => (
-                <div key={i} style={{marginTop: 12, padding: 12, background: '#f9f9f9', borderRadius: 4}}>
-                  <div style={{fontWeight: 600}}>{edu.school}</div>
-                  <div style={{color: '#666'}}>{edu.degree} {edu.field && `- ${edu.field}`}</div>
-                  <div style={{fontSize: 14, color: '#888'}}>{edu.duration}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          
+          {/* SECTION 2: CORE SKILLS - Most Important for Recruiters */}
           {linkedinData.skills && linkedinData.skills.length > 0 && (
-            <div style={{marginBottom: 16}}>
-              <strong>🛠️ Skills:</strong>
-              <div style={{display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8}}>
-                {linkedinData.skills.map((skill, i) => (
-                  <span key={i} style={{padding: '4px 12px', background: '#e0e7ff', borderRadius: 16, fontSize: 14}}>{skill}</span>
+            <div className="section">
+              <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
+              <div className="skills-grid">
+                {linkedinData.skills.slice(0, 15).map((skill, i) => (
+                  <span key={i} className="skill-badge skill-primary">{skill}</span>
+                ))}
+              </div>
+              {linkedinData.skills.length > 15 && (
+                <details className="skills-expand">
+                  <summary className="skills-expand-btn">
+                    View all {linkedinData.skills.length} skills
+                  </summary>
+                  <div className="skills-grid" style={{marginTop: 12}}>
+                    {linkedinData.skills.slice(15).map((skill, i) => (
+                      <span key={i} className="skill-badge">{skill}</span>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
+
+          {/* SECTION 3: PROFESSIONAL EXPERIENCE - Core Section */}
+          {linkedinData.experience && linkedinData.experience.length > 0 && (
+            <div className="section">
+              <h2 className="section-title">💼 Professional Experience</h2>
+              <div className="experience-count">
+                {filterViewerData(linkedinData.experience).length} positions
+              </div>
+              <div className="timeline">
+                {filterViewerData(linkedinData.experience).map((exp, i) => (
+                  <div key={i} className="experience-item">
+                    <div className="timeline-marker"></div>
+                    <div className="experience-content">
+                      <h3 className="experience-title">{exp.title}</h3>
+                      <div className="experience-company">{exp.company}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">{exp.duration}</span>
+                        {exp.location && <span className="experience-location">• {exp.location}</span>}
+                      </div>
+                      {exp.description && (
+                        <div className="experience-description">{exp.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* SECTION 4: EDUCATION */}
+          {linkedinData.education && linkedinData.education.length > 0 && (
+            <div className="section">
+              <h2 className="section-title">🎓 Education</h2>
+              <div className="education-list">
+                {linkedinData.education.map((edu, i) => (
+                  <div key={i} className="education-item">
+                    <h3 className="education-school">{edu.school}</h3>
+                    <div className="education-degree">
+                      {edu.degree} {edu.field && `• ${edu.field}`}
+                    </div>
+                    <div className="education-duration">{edu.duration}</div>
+                  </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* SECTION 5: CERTIFICATIONS & CREDENTIALS */}
           {linkedinData.certifications && linkedinData.certifications.length > 0 && (
-            <div style={{marginBottom: 16}}>
-              <strong>📜 Certifications:</strong>
-              {linkedinData.certifications.map((cert, i) => (
-                <div key={i} style={{marginTop: 8, padding: 8, background: '#f9f9f9', borderRadius: 4, fontSize: 14}}>
-                  <div style={{fontWeight: 600}}>{cert.name}</div>
-                  <div style={{color: '#666'}}>{cert.issuer}</div>
-                  <div style={{color: '#888', fontSize: 12}}>{cert.date}</div>
-                </div>
-              ))}
+            <div className="section">
+              <h2 className="section-title">📜 Certifications & Credentials</h2>
+              <div className="certifications-grid">
+                {linkedinData.certifications.map((cert, i) => (
+                  <div key={i} className="certification-item">
+                    <div className="certification-name">{cert.name}</div>
+                    <div className="certification-issuer">{cert.issuer}</div>
+                    <div className="certification-date">{cert.date}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
