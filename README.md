@@ -7,7 +7,7 @@ Tools to extract your LinkedIn profile data directly from linkedin.com.
 **Just run one command:**
 
 ```bash
-pkill -f "node server/index.js" && npm run dev
+pkill -f "node server/index.js"; npm run dev
 ```
 
 Then:

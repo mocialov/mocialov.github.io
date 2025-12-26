@@ -12,6 +12,14 @@ const PORT = 3001;
 app.use(cors());
 app.use(bodyParser.json());
 
+// Build/version marker for runtime verification
+const BUILD_VERSION = 'v2025-12-26-2 g';
+
+// Lightweight version endpoint to confirm active server file
+app.get('/api/version', (req, res) => {
+  res.json({ version: BUILD_VERSION });
+});
+
 let browser = null;
 let page = null;
 
@@ -914,7 +922,7 @@ async function expandAllSections(page) {
 }
 
 app.listen(PORT, () => {
-  console.log('🚀 LinkedIn Scraper Backend running on http://localhost:' + PORT);
+  console.log(`🚀 LinkedIn Scraper Backend (${BUILD_VERSION}) running on http://localhost:${PORT}`);
   console.log('📡 API endpoints ready:');
   console.log('   POST /api/start-browser - Start browser for login');
   console.log('   GET  /api/check-login - Check if logged in');

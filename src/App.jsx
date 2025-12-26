@@ -25,6 +25,26 @@ function App() {
     });
   };
 
+  // Filter out viewer data from certifications
+  const filterCertificationViewerData = (certifications) => {
+    if (!certifications) return [];
+    return certifications.filter(cert => {
+      // Filter out entries that look like "who viewed me" data
+      const isViewerData = 
+        cert.name?.startsWith('Someone at') ||
+        cert.issuer?.startsWith('Someone at') ||
+        cert.name?.includes('Someone at') ||
+        cert.name?.includes('…') ||
+        cert.name?.includes('...') ||
+        cert.name?.includes('Database Developer in the') ||
+        // Filter out entries with "Title at Company" pattern without issuer/date
+        (cert.name?.includes(' at ') && !cert.issuer && !cert.date) ||
+        // Filter entries that don't have both name AND issuer (likely incomplete/viewer data)
+        (!cert.name || !cert.issuer);
+      return !isViewerData;
+    });
+  };
+
   const startBrowser = async () => {
     setLoading(true);
     setStatus('Opening browser...');
@@ -125,11 +145,13 @@ function App() {
     // Filter out viewer data before downloading
     const filteredData = { 
       ...linkedinData,
-      experience: filterViewerData(linkedinData.experience)
+      experience: filterViewerData(linkedinData.experience),
+      certifications: filterCertificationViewerData(linkedinData.certifications)
     };
     
-    console.log(`Filtered ${linkedinData.experience.length - filteredData.experience.length} viewer entries`);
-    console.log(`Final count: ${filteredData.experience.length} experiences`);
+    console.log(`Filtered ${linkedinData.experience.length - filteredData.experience.length} viewer entries from experiences`);
+    console.log(`Filtered ${linkedinData.certifications.length - filteredData.certifications.length} viewer entries from certifications`);
+    console.log(`Final count: ${filteredData.experience.length} experiences, ${filteredData.certifications.length} certifications`);
     
     const dataStr = JSON.stringify(filteredData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
@@ -299,11 +321,11 @@ function App() {
           )}
 
           {/* SECTION 5: CERTIFICATIONS & CREDENTIALS */}
-          {linkedinData.certifications && linkedinData.certifications.length > 0 && (
+          {linkedinData.certifications && filterCertificationViewerData(linkedinData.certifications).length > 0 && (
             <div className="section">
               <h2 className="section-title">📜 Certifications & Credentials</h2>
               <div className="certifications-grid">
-                {linkedinData.certifications.map((cert, i) => (
+                {filterCertificationViewerData(linkedinData.certifications).map((cert, i) => (
                   <div key={i} className="certification-item">
                     <div className="certification-name">{cert.name}</div>
                     <div className="certification-issuer">{cert.issuer}</div>
