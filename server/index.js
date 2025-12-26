@@ -172,6 +172,7 @@ app.post('/api/scrape-profile', async (req, res) => {
     // Extract experiences from details page FIRST (if we navigated there)
     let allExperiences = [];
     let allEducation = [];
+    let allCertifications = [];
     if (navigatedToDetails) {
       console.log('📊 Extracting experiences from details page...');
       allExperiences = await page.evaluate(() => {
@@ -286,6 +287,101 @@ app.post('/api/scrape-profile', async (req, res) => {
       
       console.log(`   ✓ Extracted ${allEducation.length} education entries from details page`);
       
+      // Navigate back to profile
+      console.log('🔙 Navigating back to main profile page...');
+      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    // CRITICAL: Expand certifications section - navigate to details/certifications/ page
+    console.log('🔧 Expanding ALL certifications (navigating to details/certifications/)...');
+    const certProfileMatch = profileUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
+    if (certProfileMatch) {
+      const certUsername = certProfileMatch[1];
+      const certificationsUrl = `https://www.linkedin.com/in/${certUsername}/details/certifications/`;
+      
+      console.log(`   → Navigating to: ${certificationsUrl}`);
+      await page.goto(certificationsUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await new Promise(r => setTimeout(r, 3000));
+      
+      // Scroll to load all certifications
+      console.log('   → Scrolling to load all certifications...');
+      await page.evaluate(async () => {
+        const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+        if (scrollContainer) {
+          let unchangedCount = 0;
+          let lastHeight = scrollContainer.scrollHeight;
+          
+          for (let i = 0; i < 20; i++) {
+            scrollContainer.scrollTop = scrollContainer.scrollHeight;
+            await new Promise(r => setTimeout(r, 600));
+            
+            const newHeight = scrollContainer.scrollHeight;
+            if (newHeight === lastHeight) {
+              unchangedCount++;
+              if (unchangedCount >= 3) break;
+            } else {
+              unchangedCount = 0;
+            }
+            lastHeight = newHeight;
+          }
+          
+          // Scroll back to top
+          scrollContainer.scrollTop = 0;
+        }
+      });
+      
+      console.log('   ✓ Certifications details page loaded');
+      
+      // Extract ALL certifications from details page
+      allCertifications = await page.evaluate(() => {
+        const certifications = [];
+        const items = document.querySelectorAll('.pvs-list__item, li.pvs-list__paged-list-item, li.artdeco-list__item, li.pvs-list__item--line-separated');
+        
+        items.forEach((item) => {
+          try {
+            const nameElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]') ||
+                             item.querySelector('span.t-bold span[aria-hidden="true"]') ||
+                             item.querySelector('.pvs-entity__path span[aria-hidden="true"]');
+            const issuerElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]') ||
+                              item.querySelector('.pvs-entity__caption-wrapper span[aria-hidden="true"]');
+            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+            
+            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+              .map(s => s.textContent.trim())
+              .filter(t => t && t.length > 0 && t.length < 500);
+            
+            const cert = {
+              name: nameElem?.textContent?.trim() || allSpans[0] || '',
+              issuer: issuerElem?.textContent?.trim() || allSpans[1] || '',
+              date: '',
+              credentialId: '',
+              url: ''
+            };
+            
+            const dateSpan = dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}|Issued|Expires/i.test(s));
+            if (dateSpan) cert.date = dateSpan;
+            
+            const credentialSpan = allSpans.find(s => /Credential ID|ID:/i.test(s));
+            if (credentialSpan) {
+              cert.credentialId = credentialSpan.replace(/Credential ID:?/i, '').trim();
+            }
+            
+            const link = item.querySelector('a[href*="credential"], a[href*="credly"], a[href*="certificate"]');
+            if (link) cert.url = link.href;
+            
+            if (cert.name || cert.issuer) {
+              certifications.push(cert);
+            }
+          } catch (e) {
+            // Ignore
+          }
+        });
+        
+        return certifications;
+      });
+      
+      console.log(`   ✓ Extracted ${allCertifications.length} certification entries from details page`);
       // Navigate back to profile
       console.log('🔙 Navigating back to main profile page...');
       await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -612,13 +708,20 @@ app.post('/api/scrape-profile', async (req, res) => {
       data.education = allEducation;
       console.log(`✅ Using ${allEducation.length} education entries from details page`);
     }
+    
+    // Replace the certifications data with what we extracted from the details page
+    if (allCertifications && allCertifications.length > 0) {
+      data.certifications = allCertifications;
+      console.log(`✅ Using ${allCertifications.length} certifications from details page`);
+    }
 
     console.log('✅ Data extraction complete!');
     console.log('📋 Extracted:', {
       name: data.name,
       experience: data.experience.length,
       education: data.education.length,
-      skills: data.skills.length
+      skills: data.skills.length,
+      certifications: data.certifications.length
     });
 
     res.json({ 
