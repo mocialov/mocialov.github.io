@@ -12,6 +12,7 @@ function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [consoleLogs, setConsoleLogs] = useState([]);
   const [showLogs, setShowLogs] = useState(false);
+  const [excludedKeys, setExcludedKeys] = useState([]); // track removed items per section
 
   // Filter out "Who viewed me" / "Who your viewers also viewed" data
   const filterViewerData = (experiences) => {
@@ -115,6 +116,78 @@ function App() {
       return !isViewerData;
     });
   };
+
+  // Build a stable key per item for exclusion tracking
+  const makeKey = (section, item) => {
+    try {
+      switch (section) {
+        case 'experience':
+          return `${section}|${item.title || ''}|${item.company || ''}|${item.duration || ''}|${item.location || ''}`;
+        case 'education':
+          return `${section}|${item.school || ''}|${item.degree || ''}|${item.field || ''}|${item.duration || ''}`;
+        case 'certifications':
+          return `${section}|${item.name || ''}|${item.issuer || ''}|${item.date || ''}`;
+        case 'projects':
+          return `${section}|${item.title || ''}|${item.date || ''}|${item.url || ''}`;
+        case 'volunteer':
+          return `${section}|${item.role || ''}|${item.organization || ''}|${item.date || ''}|${item.duration || ''}`;
+        case 'publications':
+          return `${section}|${item.title || ''}|${item.publisher || ''}|${item.date || ''}|${item.url || ''}`;
+        case 'honors':
+          return `${section}|${item.title || ''}|${item.issuer || ''}|${item.date || ''}`;
+        case 'languages':
+          return `${section}|${item || ''}`;
+        case 'patents':
+          return `${section}|${item.title || ''}|${item.number || ''}|${item.issuer || ''}|${item.date || ''}|${item.url || ''}`;
+        case 'skills':
+          return `${section}|${item || ''}`;
+        default:
+          return `${section}|${JSON.stringify(item)}`;
+      }
+    } catch (e) {
+      return `${section}|${String(item)}`;
+    }
+  };
+
+  const isExcluded = (section, item) => {
+    const key = makeKey(section, item);
+    return excludedKeys.includes(key);
+  };
+
+  const excludeItem = (section, item) => {
+    const key = makeKey(section, item);
+    setExcludedKeys(prev => (prev.includes(key) ? prev : [...prev, key]));
+  };
+
+  const clearExclusions = () => setExcludedKeys([]);
+
+  // Apply viewer-data filters and user exclusions
+  const filteredForScreen = linkedinData ? {
+    experience: filterViewerData(linkedinData.experience).filter(exp => !isExcluded('experience', exp)),
+    education: (linkedinData.education || []).filter(edu => !isExcluded('education', edu)),
+    certifications: filterCertificationViewerData(linkedinData.certifications).filter(cert => !isExcluded('certifications', cert)),
+    projects: filterProjectsData(linkedinData.projects).filter(proj => !isExcluded('projects', proj)),
+    volunteer: filterVolunteeringData(linkedinData.volunteer).filter(vol => !isExcluded('volunteer', vol)),
+    publications: filterPublicationsData(linkedinData.publications).filter(pub => !isExcluded('publications', pub)),
+    honors: filterHonorsData(linkedinData.honors).filter(honor => !isExcluded('honors', honor)),
+    languages: filterLanguagesData(linkedinData.languages).filter(lang => !isExcluded('languages', lang)),
+    patents: filterPatentsData(linkedinData.patents).filter(patent => !isExcluded('patents', patent)),
+    skills: (linkedinData.skills || []).filter(skill => !isExcluded('skills', skill))
+  } : null;
+
+  const filteredForPrint = linkedinData ? {
+    ...linkedinData,
+    experience: filteredForScreen.experience,
+    education: filteredForScreen.education,
+    certifications: filteredForScreen.certifications,
+    projects: filteredForScreen.projects,
+    volunteer: filteredForScreen.volunteer,
+    publications: filteredForScreen.publications,
+    honors: filteredForScreen.honors,
+    languages: filteredForScreen.languages,
+    patents: filteredForScreen.patents,
+    skills: filteredForScreen.skills
+  } : null;
 
   const startBrowser = async () => {
     setLoading(true);
@@ -441,10 +514,13 @@ function App() {
             <button onClick={downloadData} className="button" style={{ background: '#374151' }}>
               💾 Download JSON
             </button>
+            <button onClick={clearExclusions} className="button" style={{ background: '#ef4444' }} title="Restore all removed items">
+              ♻️ Reset Removals
+            </button>
           </div>
 
           {/* CV Page (Print-Optimized) */}
-          <CV data={linkedinData} />
+          <CV data={filteredForPrint} />
 
           {/* Visual Profile (Interactive, on-screen) */}
           {/* SECTION 1: HEADER - Contact & Profile Summary */}
@@ -468,22 +544,36 @@ function App() {
           )}
 
           {/* SECTION 2: CORE SKILLS - Most Important for Recruiters */}
-          {linkedinData.skills && linkedinData.skills.length > 0 && (
+          {filteredForScreen && filteredForScreen.skills && filteredForScreen.skills.length > 0 && (
             <div className="section">
               <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
               <div className="skills-grid">
-                {linkedinData.skills.slice(0, 15).map((skill, i) => (
-                  <span key={i} className="skill-badge skill-primary">{skill}</span>
+                {filteredForScreen.skills.slice(0, 15).map((skill, i) => (
+                  <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
+                    {skill}
+                    <button
+                      onClick={() => excludeItem('skills', skill)}
+                      title="Remove skill"
+                      style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
+                    >×</button>
+                  </span>
                 ))}
               </div>
-              {linkedinData.skills.length > 15 && (
+              {filteredForScreen.skills.length > 15 && (
                 <details className="skills-expand">
                   <summary className="skills-expand-btn">
-                    View all {linkedinData.skills.length} skills
+                    View all {filteredForScreen.skills.length} skills
                   </summary>
                   <div className="skills-grid" style={{ marginTop: 12 }}>
-                    {linkedinData.skills.slice(15).map((skill, i) => (
-                      <span key={i} className="skill-badge">{skill}</span>
+                    {filteredForScreen.skills.slice(15).map((skill, i) => (
+                      <span key={i} className="skill-badge" style={{ position: 'relative' }}>
+                        {skill}
+                        <button
+                          onClick={() => excludeItem('skills', skill)}
+                          title="Remove skill"
+                          style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
+                        >×</button>
+                      </span>
                     ))}
                   </div>
                 </details>
@@ -492,14 +582,14 @@ function App() {
           )}
 
           {/* SECTION 3: PROFESSIONAL EXPERIENCE - Core Section */}
-          {linkedinData.experience && linkedinData.experience.length > 0 && (
+          {filteredForScreen && filteredForScreen.experience && filteredForScreen.experience.length > 0 && (
             <div className="section">
               <h2 className="section-title">💼 Professional Experience</h2>
               <div className="experience-count">
-                {filterViewerData(linkedinData.experience).length} positions
+                {filteredForScreen.experience.length} positions
               </div>
               <div className="timeline">
-                {filterViewerData(linkedinData.experience).map((exp, i) => (
+                {filteredForScreen.experience.map((exp, i) => (
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
@@ -512,6 +602,14 @@ function App() {
                       {exp.description && (
                         <div className="experience-description">{exp.description}</div>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button
+                          onClick={() => excludeItem('experience', exp)}
+                          className="button"
+                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Remove this experience"
+                        >Remove</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -520,17 +618,25 @@ function App() {
           )}
 
           {/* SECTION 4: EDUCATION */}
-          {linkedinData.education && linkedinData.education.length > 0 && (
+          {filteredForScreen && filteredForScreen.education && filteredForScreen.education.length > 0 && (
             <div className="section">
               <h2 className="section-title">🎓 Education</h2>
               <div className="education-list">
-                {linkedinData.education.map((edu, i) => (
+                {filteredForScreen.education.map((edu, i) => (
                   <div key={i} className="education-item">
                     <h3 className="education-school">{edu.school}</h3>
                     <div className="education-degree">
                       {edu.degree} {edu.field && `• ${edu.field}`}
                     </div>
                     <div className="education-duration">{edu.duration}</div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                      <button
+                        onClick={() => excludeItem('education', edu)}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this education"
+                      >Remove</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -538,15 +644,23 @@ function App() {
           )}
 
           {/* SECTION 5: CERTIFICATIONS & CREDENTIALS */}
-          {linkedinData.certifications && filterCertificationViewerData(linkedinData.certifications).length > 0 && (
+          {filteredForScreen && filteredForScreen.certifications && filteredForScreen.certifications.length > 0 && (
             <div className="section">
               <h2 className="section-title">📜 Certifications & Credentials</h2>
               <div className="certifications-grid">
-                {filterCertificationViewerData(linkedinData.certifications).map((cert, i) => (
+                {filteredForScreen.certifications.map((cert, i) => (
                   <div key={i} className="certification-item">
                     <div className="certification-name">{cert.name}</div>
                     <div className="certification-issuer">{cert.issuer}</div>
                     <div className="certification-date">{cert.date}</div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                      <button
+                        onClick={() => excludeItem('certifications', cert)}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this certification"
+                      >Remove</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -554,11 +668,11 @@ function App() {
           )}
 
           {/* SECTION 6: PROJECTS */}
-          {linkedinData.projects && filterProjectsData(linkedinData.projects).length > 0 && (
+          {filteredForScreen && filteredForScreen.projects && filteredForScreen.projects.length > 0 && (
             <div className="section">
               <h2 className="section-title">🚀 Projects</h2>
               <div className="timeline">
-                {filterProjectsData(linkedinData.projects).map((proj, i) => (
+                {filteredForScreen.projects.map((proj, i) => (
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
@@ -575,6 +689,14 @@ function App() {
                       {proj.description && (
                         <div className="experience-description">{proj.description}</div>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button
+                          onClick={() => excludeItem('projects', proj)}
+                          className="button"
+                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Remove this project"
+                        >Remove</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -583,11 +705,11 @@ function App() {
           )}
 
           {/* SECTION 7: VOLUNTEERING */}
-          {linkedinData.volunteer && filterVolunteeringData(linkedinData.volunteer).length > 0 && (
+          {filteredForScreen && filteredForScreen.volunteer && filteredForScreen.volunteer.length > 0 && (
             <div className="section">
               <h2 className="section-title">❤️ Volunteering</h2>
               <div className="timeline">
-                {filterVolunteeringData(linkedinData.volunteer).map((vol, i) => (
+                {filteredForScreen.volunteer.map((vol, i) => (
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
@@ -600,6 +722,14 @@ function App() {
                       {vol.description && (
                         <div className="experience-description">{vol.description}</div>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button
+                          onClick={() => excludeItem('volunteer', vol)}
+                          className="button"
+                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Remove this volunteering item"
+                        >Remove</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -608,11 +738,11 @@ function App() {
           )}
 
           {/* SECTION 8: PUBLICATIONS */}
-          {linkedinData.publications && filterPublicationsData(linkedinData.publications).length > 0 && (
+          {filteredForScreen && filteredForScreen.publications && filteredForScreen.publications.length > 0 && (
             <div className="section">
               <h2 className="section-title">📚 Publications</h2>
               <div className="timeline">
-                {filterPublicationsData(linkedinData.publications).map((pub, i) => (
+                {filteredForScreen.publications.map((pub, i) => (
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
@@ -630,6 +760,14 @@ function App() {
                       {pub.description && (
                         <div className="experience-description">{pub.description}</div>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button
+                          onClick={() => excludeItem('publications', pub)}
+                          className="button"
+                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Remove this publication"
+                        >Remove</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -638,11 +776,11 @@ function App() {
           )}
 
           {/* SECTION 9: HONORS & AWARDS */}
-          {linkedinData.honors && filterHonorsData(linkedinData.honors).length > 0 && (
+          {filteredForScreen && filteredForScreen.honors && filteredForScreen.honors.length > 0 && (
             <div className="section">
               <h2 className="section-title">🏆 Honors & Awards</h2>
               <div className="timeline">
-                {filterHonorsData(linkedinData.honors).map((honor, i) => (
+                {filteredForScreen.honors.map((honor, i) => (
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
@@ -654,6 +792,14 @@ function App() {
                       {honor.description && (
                         <div className="experience-description">{honor.description}</div>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button
+                          onClick={() => excludeItem('honors', honor)}
+                          className="button"
+                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Remove this honor"
+                        >Remove</button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -662,23 +808,30 @@ function App() {
           )}
 
           {/* SECTION 10: LANGUAGES */}
-          {linkedinData.languages && filterLanguagesData(linkedinData.languages).length > 0 && (
+          {filteredForScreen && filteredForScreen.languages && filteredForScreen.languages.length > 0 && (
             <div className="section">
               <h2 className="section-title">🌐 Languages</h2>
               <div className="skills-grid">
-                {filterLanguagesData(linkedinData.languages).map((language, i) => (
-                  <span key={i} className="skill-badge skill-primary">{language}</span>
+                {filteredForScreen.languages.map((language, i) => (
+                  <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
+                    {language}
+                    <button
+                      onClick={() => excludeItem('languages', language)}
+                      title="Remove language"
+                      style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
+                    >×</button>
+                  </span>
                 ))}
               </div>
             </div>
           )}
 
           {/* SECTION 11: PATENTS */}
-          {linkedinData.patents && filterPatentsData(linkedinData.patents).length > 0 && (
+          {filteredForScreen && filteredForScreen.patents && filteredForScreen.patents.length > 0 && (
             <div className="section">
               <h2 className="section-title">💡 Patents</h2>
               <div className="timeline">
-                {filterPatentsData(linkedinData.patents).map((patent, i) => (
+                {filteredForScreen.patents.map((patent, i) => (
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
@@ -699,6 +852,14 @@ function App() {
                       {patent.description && (
                         <div className="experience-description">{patent.description}</div>
                       )}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button
+                          onClick={() => excludeItem('patents', patent)}
+                          className="button"
+                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                          title="Remove this patent"
+                        >Remove</button>
+                      </div>
                     </div>
                   </div>
                 ))}
