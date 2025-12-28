@@ -31,5 +31,12 @@ yarn-error.log*
 scripts/linkedin-data.json
 scripts/linkedin-raw.html
 
+
 # Puppeteer profile
 .puppeteer-profile/
+
+# Build output
+/dist
+
+# Session data
+/linkedin-session

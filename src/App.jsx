@@ -9,6 +9,8 @@ function App() {
   const [linkedinData, setLinkedinData] = useState(null);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
+  const [consoleLogs, setConsoleLogs] = useState([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   // Filter out "Who viewed me" / "Who your viewers also viewed" data
   const filterViewerData = (experiences) => {
@@ -61,6 +63,63 @@ function App() {
       setStatus(`❌ Error: ${error.message}`);
     }
     setLoading(false);
+  };
+
+  const startBrowserHeadless = async () => {
+    setLoading(true);
+    setStatus('Starting browser in headless mode (using saved session)...');
+    try {
+      const response = await fetch(`${API_URL}/api/start-browser`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headless: true })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setBrowserOpen(true);
+        setStatus('✅ Headless browser started! Checking login status...');
+        // Check if already logged in
+        setTimeout(checkLoginStatus, 2000);
+      }
+    } catch (error) {
+      setStatus(`❌ Error: ${error.message}`);
+    }
+    setLoading(false);
+  };
+
+  const switchToHeadless = async () => {
+    setLoading(true);
+    setStatus('Switching to headless mode...');
+    try {
+      const response = await fetch(`${API_URL}/api/switch-to-headless`, { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        setStatus('✅ Switched to headless mode! Session preserved.');
+      }
+    } catch (error) {
+      setStatus(`❌ Error: ${error.message}`);
+    }
+    setLoading(false);
+  };
+
+  const fetchConsoleLogs = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/console-logs?limit=200`);
+      const data = await response.json();
+      setConsoleLogs(data.logs || []);
+    } catch (error) {
+      console.error('Error fetching console logs:', error);
+    }
+  };
+
+  const toggleLogs = () => {
+    setShowLogs(!showLogs);
+    if (!showLogs) {
+      fetchConsoleLogs();
+      // Auto-refresh logs every 2 seconds when visible
+      const interval = setInterval(fetchConsoleLogs, 2000);
+      return () => clearInterval(interval);
+    }
   };
 
   const checkLoginStatus = async () => {
@@ -193,9 +252,20 @@ function App() {
 
       <div className="button-group">
         {!browserOpen && (
-          <button onClick={startBrowser} disabled={loading} className="button">
-            {loading ? 'Starting...' : '🚀 Start Browser & Login'}
-          </button>
+          <>
+            <button onClick={startBrowser} disabled={loading} className="button">
+              {loading ? 'Starting...' : '🚀 Start Browser & Login'}
+            </button>
+            <button 
+              onClick={startBrowserHeadless} 
+              disabled={loading} 
+              className="button" 
+              style={{background: '#8b5cf6'}}
+              title="Use this if you're already logged in - runs in background"
+            >
+              {loading ? 'Starting...' : '👻 Start Headless (Already Logged In)'}
+            </button>
+          </>
         )}
 
         {browserOpen && !loggedIn && (
@@ -208,6 +278,9 @@ function App() {
           <>
             <button onClick={extractData} disabled={loading} className="button" style={{background: '#10b981', fontSize: '18px', padding: '16px 32px'}}>
               {loading ? '⏳ Extracting Data... (20-30s)' : '📊 Extract All My Data'}
+            </button>
+            <button onClick={switchToHeadless} disabled={loading} className="button" style={{background: '#8b5cf6', fontSize: '14px'}}>
+              {loading ? 'Switching...' : '👻 Switch to Headless Mode'}
             </button>
             <button onClick={navigateToProfile} disabled={loading} className="button" style={{background: '#6b7280', fontSize: '14px'}}>
               {loading ? 'Navigating...' : '🧭 Go to Profile (optional)'}
@@ -225,6 +298,57 @@ function App() {
       {status && (
         <div className={status.includes('❌') ? 'error' : 'result'} style={{marginTop: 20, whiteSpace: 'pre-line'}}>
           {status}
+        </div>
+      )}
+
+      {browserOpen && (
+        <div style={{marginTop: 20}}>
+          <button 
+            onClick={toggleLogs} 
+            className="button" 
+            style={{background: '#6366f1', fontSize: '14px'}}
+          >
+            {showLogs ? '🔽 Hide Browser Console' : '🔼 Show Browser Console'}
+          </button>
+          
+          {showLogs && (
+            <div style={{
+              marginTop: 12,
+              background: '#1e1e1e',
+              color: '#d4d4d4',
+              padding: '12px',
+              borderRadius: '8px',
+              maxHeight: '400px',
+              overflowY: 'auto',
+              fontFamily: 'monospace',
+              fontSize: '12px'
+            }}>
+              <div style={{marginBottom: 8, color: '#9ca3af', fontSize: 11}}>
+                Browser Console Output ({consoleLogs.length} messages)
+              </div>
+              {consoleLogs.length === 0 ? (
+                <div style={{color: '#9ca3af'}}>No console output yet...</div>
+              ) : (
+                consoleLogs.map((log, i) => (
+                  <div key={i} style={{
+                    padding: '4px 0',
+                    borderBottom: '1px solid #333',
+                    color: log.type === 'error' ? '#f87171' : 
+                           log.type === 'warn' ? '#fbbf24' : 
+                           log.type === 'info' ? '#60a5fa' : '#d4d4d4'
+                  }}>
+                    <span style={{color: '#9ca3af', marginRight: 8}}>
+                      [{new Date(log.timestamp).toLocaleTimeString()}]
+                    </span>
+                    <span style={{color: '#a78bfa', marginRight: 8}}>
+                      {log.type.toUpperCase()}
+                    </span>
+                    {log.text}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 

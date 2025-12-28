@@ -8,12 +8,13 @@ puppeteer.use(StealthPlugin());
 
 const app = express();
 const PORT = 3001;
+const USER_DATA_DIR = './linkedin-session';
 
 app.use(cors());
 app.use(bodyParser.json());
 
 // Build/version marker for runtime verification
-const BUILD_VERSION = 'v2025-12-26-2 g';
+const BUILD_VERSION = 'v2025-12-27-console-logs';
 
 // Lightweight version endpoint to confirm active server file
 app.get('/api/version', (req, res) => {
@@ -22,18 +23,22 @@ app.get('/api/version', (req, res) => {
 
 let browser = null;
 let page = null;
+let consoleLogs = []; // Store browser console logs
 
 // Endpoint to start browser and login
 app.post('/api/start-browser', async (req, res) => {
   try {
-    console.log('🚀 Starting browser for LinkedIn login...');
+    const { headless = false } = req.body; // Allow headless mode via request body
+    
+    console.log(`🚀 Starting browser ${headless ? '(headless)' : '(visible)'}...`);
     
     if (browser) {
       await browser.close();
     }
 
     browser = await puppeteer.launch({
-      headless: false, // Show browser so user can login
+      headless: headless, // Can be controlled via request
+      userDataDir: USER_DATA_DIR, // Persist session
       defaultViewport: null,
       args: [
         '--no-sandbox',
@@ -45,18 +50,45 @@ app.post('/api/start-browser', async (req, res) => {
 
     page = await browser.newPage();
     
+    // Clear previous logs
+    consoleLogs = [];
+    
+    // Capture browser console output
+    page.on('console', msg => {
+      const type = msg.type();
+      const text = msg.text();
+      const logEntry = { type, text, timestamp: new Date().toISOString() };
+      consoleLogs.push(logEntry);
+      console.log(`[Browser ${type.toUpperCase()}]:`, text);
+    });
+    
+    // Capture page errors
+    page.on('pageerror', error => {
+      const logEntry = { type: 'error', text: error.message, timestamp: new Date().toISOString() };
+      consoleLogs.push(logEntry);
+      console.log('[Browser ERROR]:', error.message);
+    });
+    
     // Set a realistic user agent
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    // Navigate to LinkedIn login
-    await page.goto('https://www.linkedin.com/login', { 
-      waitUntil: 'networkidle2',
-      timeout: 60000 
-    });
+    // Navigate to LinkedIn login (more lenient timeout handling)
+    try {
+      await page.goto('https://www.linkedin.com/login', { 
+        waitUntil: 'domcontentloaded',
+        timeout: 30000 
+      });
+    } catch (navError) {
+      console.log('⚠️ Navigation timeout, but page may have loaded. Continuing...');
+      // Continue anyway - page might be usable even if not fully loaded
+    }
 
     res.json({ 
       success: true, 
-      message: 'Browser opened! Please login to LinkedIn in the browser window.' 
+      headless: headless,
+      message: headless 
+        ? 'Browser started in headless mode. Session will be reused if already logged in.'
+        : 'Browser opened! Please login to LinkedIn in the browser window. Session will be saved for future use.' 
     });
 
   } catch (error) {
@@ -66,6 +98,19 @@ app.post('/api/start-browser', async (req, res) => {
       error: error.message 
     });
   }
+});
+
+// Endpoint to get browser console logs
+app.get('/api/console-logs', (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const sinceLogs = consoleLogs.slice(-limit);
+  res.json({ logs: sinceLogs, total: consoleLogs.length });
+});
+
+// Endpoint to clear console logs
+app.post('/api/clear-logs', (req, res) => {
+  consoleLogs = [];
+  res.json({ success: true, message: 'Logs cleared' });
 });
 
 // Endpoint to check if user is logged in
@@ -173,230 +218,36 @@ app.post('/api/scrape-profile', async (req, res) => {
     console.log('🔍 Expanding all sections...');
     await expandAllSections(page);
 
-    // CRITICAL: Expand experience section to get ALL 15 experiences
-    console.log('🔧 Expanding ALL experiences (clicking "Show all N experiences")...');
-    const navigatedToDetails = await expandExperienceSection(page);
-    
-    // Extract experiences from details page FIRST (if we navigated there)
+    // Use standardized workflow to extract data from details pages
     let allExperiences = [];
     let allEducation = [];
     let allCertifications = [];
-    if (navigatedToDetails) {
-      console.log('📊 Extracting experiences from details page...');
-      allExperiences = await page.evaluate(() => {
-        const experiences = [];
-        const items = document.querySelectorAll('.pvs-list__item, li.pvs-list__paged-list-item, li.artdeco-list__item, li.pvs-list__item--line-separated');
-        
-        items.forEach(item => {
-          try {
-            const titleElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]');
-            const companyElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]');
-            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-            const locationElem = item.querySelector('.t-14.t-normal.t-black--light:nth-child(4) span[aria-hidden="true"]');
-            const descElem = item.querySelector('.pvs-list__item--with-top-padding .visually-hidden + span[aria-hidden="true"]');
-            
-            const exp = {
-              title: titleElem?.textContent?.trim() || '',
-              company: companyElem?.textContent?.trim() || '',
-              dates: dateElem?.textContent?.trim() || '',
-              location: locationElem?.textContent?.trim() || '',
-              description: descElem?.textContent?.trim() || ''
-            };
-            
-            if (exp.title || exp.company) {
-              experiences.push(exp);
-            }
-          } catch (e) {
-            console.error('Error extracting experience item:', e);
-          }
-        });
-        
-        console.log(`     ✅ Extracted ${experiences.length} experiences from details page`);
-        return experiences;
-      });
-      
-      // Navigate BACK to main profile page
-      console.log('🔙 Navigating back to main profile page...');
-      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await new Promise(r => setTimeout(r, 2000));
-    }
+    
+    // Extract experiences from details/experience page
+    allExperiences = await navigateAndExtractDetailsPage(
+      page, 
+      profileUrl, 
+      'experience', 
+      extractExperienceData
+    );
+    
+    // Extract education from details/education page
+    allEducation = await navigateAndExtractDetailsPage(
+      page,
+      profileUrl,
+      'education',
+      extractEducationData
+    );
+    
+    // Extract certifications from details/certifications page
+    allCertifications = await navigateAndExtractDetailsPage(
+      page,
+      profileUrl,
+      'certifications',
+      extractCertificationData
+    );
 
-
-    // Navigate to education details page
-    console.log('🔧 Expanding ALL education (navigating to details/education/)...');
-    const profileMatch = profileUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
-    if (profileMatch) {
-      const username = profileMatch[1];
-      const educationUrl = `https://www.linkedin.com/in/${username}/details/education/`;
-      
-      console.log(`   → Navigating to: ${educationUrl}`);
-      await page.goto(educationUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await new Promise(r => setTimeout(r, 3000));
-      
-      // Scroll to load all education
-      console.log('   → Scrolling to load all education...');
-      await page.evaluate(async () => {
-        const main = document.querySelector('main');
-        if (main) {
-          for (let i = 0; i < 10; i++) {
-            main.scrollTop = main.scrollHeight;
-            await new Promise(r => setTimeout(r, 500));
-          }
-        }
-      });
-      
-      console.log('   ✓ Education details page loaded');
-      
-      // Extract ALL education from details page
-      allEducation = await page.evaluate(() => {
-        const education = [];
-        
-        // Only select items from the main content area, not from "Who viewed" sidebar
-        const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
-        const items = mainContent.querySelectorAll('.pvs-list__item--line-separated, li.pvs-list__paged-list-item');
-        
-        items.forEach((item) => {
-          try {
-            const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]');
-            const degreeElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]');
-            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-            
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-              .map(s => s.textContent.trim())
-              .filter(t => t && t.length > 0);
-            
-            const edu = {
-              school: schoolElem?.textContent?.trim() || allSpans[0] || '',
-              degree: degreeElem?.textContent?.trim() || allSpans[1] || '',
-              field: allSpans[2] || '',
-              duration: dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}/.test(s)) || '',
-              description: ''
-            };
-            
-            // Filter out viewer data (same logic as experiences)
-            const isViewerData = 
-              edu.school.startsWith('Someone at') ||
-              edu.degree.startsWith('Someone at') ||
-              edu.school.includes('…') ||
-              edu.school.includes('...') ||
-              (edu.school.match(/\bat\b/i) && !edu.degree && !edu.duration) ||
-              (!edu.duration && !edu.degree && edu.school);
-            
-            if (edu.school && !isViewerData) {
-              education.push(edu);
-            }
-          } catch (e) {
-            // Ignore
-          }
-        });
-        
-        return education;
-      });
-      
-      console.log(`   ✓ Extracted ${allEducation.length} education entries from details page`);
-      
-      // Navigate back to profile
-      console.log('🔙 Navigating back to main profile page...');
-      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    // CRITICAL: Expand certifications section - navigate to details/certifications/ page
-    console.log('🔧 Expanding ALL certifications (navigating to details/certifications/)...');
-    const certProfileMatch = profileUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
-    if (certProfileMatch) {
-      const certUsername = certProfileMatch[1];
-      const certificationsUrl = `https://www.linkedin.com/in/${certUsername}/details/certifications/`;
-      
-      console.log(`   → Navigating to: ${certificationsUrl}`);
-      await page.goto(certificationsUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      await new Promise(r => setTimeout(r, 3000));
-      
-      // Scroll to load all certifications
-      console.log('   → Scrolling to load all certifications...');
-      await page.evaluate(async () => {
-        const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
-        if (scrollContainer) {
-          let unchangedCount = 0;
-          let lastHeight = scrollContainer.scrollHeight;
-          
-          for (let i = 0; i < 20; i++) {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-            await new Promise(r => setTimeout(r, 600));
-            
-            const newHeight = scrollContainer.scrollHeight;
-            if (newHeight === lastHeight) {
-              unchangedCount++;
-              if (unchangedCount >= 3) break;
-            } else {
-              unchangedCount = 0;
-            }
-            lastHeight = newHeight;
-          }
-          
-          // Scroll back to top
-          scrollContainer.scrollTop = 0;
-        }
-      });
-      
-      console.log('   ✓ Certifications details page loaded');
-      
-      // Extract ALL certifications from details page
-      allCertifications = await page.evaluate(() => {
-        const certifications = [];
-        const items = document.querySelectorAll('.pvs-list__item, li.pvs-list__paged-list-item, li.artdeco-list__item, li.pvs-list__item--line-separated');
-        
-        items.forEach((item) => {
-          try {
-            const nameElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]') ||
-                             item.querySelector('span.t-bold span[aria-hidden="true"]') ||
-                             item.querySelector('.pvs-entity__path span[aria-hidden="true"]');
-            const issuerElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]') ||
-                              item.querySelector('.pvs-entity__caption-wrapper span[aria-hidden="true"]');
-            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-            
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-              .map(s => s.textContent.trim())
-              .filter(t => t && t.length > 0 && t.length < 500);
-            
-            const cert = {
-              name: nameElem?.textContent?.trim() || allSpans[0] || '',
-              issuer: issuerElem?.textContent?.trim() || allSpans[1] || '',
-              date: '',
-              credentialId: '',
-              url: ''
-            };
-            
-            const dateSpan = dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}|Issued|Expires/i.test(s));
-            if (dateSpan) cert.date = dateSpan;
-            
-            const credentialSpan = allSpans.find(s => /Credential ID|ID:/i.test(s));
-            if (credentialSpan) {
-              cert.credentialId = credentialSpan.replace(/Credential ID:?/i, '').trim();
-            }
-            
-            const link = item.querySelector('a[href*="credential"], a[href*="credly"], a[href*="certificate"]');
-            if (link) cert.url = link.href;
-            
-            if (cert.name || cert.issuer) {
-              certifications.push(cert);
-            }
-          } catch (e) {
-            // Ignore
-          }
-        });
-        
-        return certifications;
-      });
-      
-      console.log(`   ✓ Extracted ${allCertifications.length} certification entries from details page`);
-      // Navigate back to profile
-      console.log('🔙 Navigating back to main profile page...');
-      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    console.log('📊 Extracting remaining data from main profile...');
+    console.log('📊 Extracting supplementary data from main profile...');
     
     // Extract all data
     const data = await page.evaluate(() => {
@@ -723,6 +574,39 @@ app.post('/api/scrape-profile', async (req, res) => {
       console.log(`✅ Using ${allCertifications.length} certifications from details page`);
     }
 
+    // Final cleanup: Filter out any viewer data that slipped through
+    data.experience = data.experience.filter(exp => {
+      const isViewerData = 
+        exp.title?.startsWith('Someone at') ||
+        exp.company?.startsWith('Someone at') ||
+        exp.title?.includes('…') ||
+        exp.title?.includes('...') ||
+        exp.title?.toLowerCase().includes('database developer in the') ||
+        (!exp.dates && !exp.company) ||
+        (exp.title?.match(/\bat\b/i) && !exp.company && !exp.dates);
+      return !isViewerData;
+    });
+
+    data.certifications = data.certifications.filter(cert => {
+      const isViewerData = 
+        cert.name?.startsWith('Someone at') ||
+        cert.issuer?.startsWith('Someone at') ||
+        cert.name?.includes('…') ||
+        cert.name?.includes('...') ||
+        cert.name?.toLowerCase().includes('database developer in the') ||
+        (!cert.issuer && !cert.date);
+      return !isViewerData;
+    });
+
+    data.education = data.education.filter(edu => {
+      const isViewerData = 
+        edu.school?.startsWith('Someone at') ||
+        edu.degree?.startsWith('Someone at') ||
+        edu.school?.includes('…') ||
+        (!edu.degree && !edu.duration);
+      return !isViewerData;
+    });
+
     console.log('✅ Data extraction complete!');
     console.log('📋 Extracted:', {
       name: data.name,
@@ -787,114 +671,265 @@ async function autoScroll(page) {
   });
 }
 
-// Expand the experience section to show ALL experiences (not just 5)
-async function expandExperienceSection(page) {
-  console.log('  → Looking for "Show all experiences" link...');
+/**
+ * Standardized workflow for navigating to a LinkedIn details page,
+ * extracting data, and returning to the main profile.
+ * 
+ * @param {Object} page - Puppeteer page object
+ * @param {string} profileUrl - Base profile URL (e.g., 'https://www.linkedin.com/in/mocialov/')
+ * @param {string} detailsType - Type of details page ('experience', 'education', 'certifications', etc.)
+ * @param {Function} extractionFunction - Function to extract data from the details page
+ * @returns {Promise<Array>} - Extracted data array
+ */
+async function navigateAndExtractDetailsPage(page, profileUrl, detailsType, extractionFunction) {
+  console.log(`🔧 Extracting ALL ${detailsType} (navigating to details/${detailsType}/)...`);
   
-  const result = await page.evaluate(async () => {
-    const expSection = document.querySelector('#experience');
-    if (!expSection) {
-      return { success: false, reason: 'Experience section not found' };
-    }
-    
-    const expContainer = expSection.closest('section');
-    if (!expContainer) {
-      return { success: false, reason: 'Experience container not found' };
-    }
-    
-    // Find "Show all" link/button
-    const allInteractive = Array.from(expContainer.querySelectorAll('a, button, div[role="button"], span[role="button"]'));
-    console.log(`     → Found ${allInteractive.length} interactive elements`);
-    
-    for (const btn of allInteractive) {
-      const text = (btn.textContent || '').toLowerCase().trim();
-      const href = btn.getAttribute('href') || '';
-      const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-      
-      const hasShowAll = text.includes('show all') || text.includes('see all') || ariaLabel.includes('show all');
-      const hasExperience = text.includes('experience') || href.includes('experience') || ariaLabel.includes('experience');
-      
-      if (hasShowAll && hasExperience) {
-        console.log(`     ✓ Found: "${text || ariaLabel}" (href: ${href})`);
-        return { success: true, buttonText: text || ariaLabel, href: href };
-      }
-    }
-    
-    return { success: false, reason: 'Show all link not found' };
-  });
-  
-  if (!result.success) {
-    console.log(`     ⚠️ ${result.reason} - extracting only visible experiences`);
-    return false;
+  const profileMatch = profileUrl.match(/linkedin\.com\/in\/([^\/\?]+)/);
+  if (!profileMatch) {
+    console.log(`   ⚠️ Invalid profile URL: ${profileUrl}`);
+    return [];
   }
   
-  // Click the link to navigate to details page
-  console.log(`     → Clicking "${result.buttonText}"...`);
+  const username = profileMatch[1];
+  const detailsUrl = `https://www.linkedin.com/in/${username}/details/${detailsType}/`;
   
   try {
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 60000 }),
-      page.evaluate(() => {
-        const expSection = document.querySelector('#experience');
-        const expContainer = expSection?.closest('section');
-        const link = expContainer?.querySelector('a[href*="details/experience"]');
-        if (link) link.click();
-      })
-    ]);
-  } catch (e) {
-    console.log(`     ⚠️ Navigation error: ${e.message}`);
-    return false;
-  }
-  
-  console.log(`     ✓ Navigated to details page`);
-  console.log(`     → Current URL: ${page.url()}`);
-  
-  // Wait longer for the page to fully load
-  console.log(`     → Waiting 8 seconds for content to load...`);
-  await new Promise(r => setTimeout(r, 8000));
-  
-  // Scroll to load all experience items
-  console.log(`     → Scrolling to load all experiences...`);
-  
-  await page.evaluate(async () => {
-    const scrollContainer = document.querySelector('.scaffold-finite-scroll__content') || document.body;
+    // Navigate to details page
+    console.log(`   → Navigating to: ${detailsUrl}`);
+    await page.goto(detailsUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await new Promise(r => setTimeout(r, 3000));
     
-    const countItems = () => document.querySelectorAll('.pvs-list__item, li.pvs-list__paged-list-item, li.artdeco-list__item, li.pvs-list__item--line-separated').length;
-    
-    let lastCount = 0;
-    let unchangedCount = 0;
-    
-    for (let i = 0; i < 30; i++) {
-      const before = countItems();
-      
-      scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      window.scrollTo(0, document.body.scrollHeight);
-      
-      await new Promise(r => setTimeout(r, 800));
-      
-      const after = countItems();
-      
-      if (after > before) {
-        console.log(`     → Scroll ${i + 1}: ${after} items`);
-        unchangedCount = 0;
-      } else {
-        unchangedCount++;
-        if (unchangedCount >= 4) {
-          console.log(`     → Scroll ${i + 1}: ${after} items (done loading)`);
-          break;
+    // Scroll to load all content
+    console.log(`   → Scrolling to load all ${detailsType}...`);
+    await page.evaluate(async () => {
+      const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+      if (scrollContainer) {
+        let unchangedCount = 0;
+        let lastHeight = scrollContainer.scrollHeight;
+        
+        for (let i = 0; i < 20; i++) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          await new Promise(r => setTimeout(r, 600));
+          
+          const newHeight = scrollContainer.scrollHeight;
+          if (newHeight === lastHeight) {
+            unchangedCount++;
+            if (unchangedCount >= 3) break;
+          } else {
+            unchangedCount = 0;
+          }
+          lastHeight = newHeight;
         }
+        
+        // Scroll back to top
+        scrollContainer.scrollTop = 0;
       }
-    }
+    });
     
-    const finalCount = countItems();
-    console.log(`     ✅ Total experiences loaded: ${finalCount}`);
-  });
-  
-  await new Promise(r => setTimeout(r, 2000));
-  return true;
+    console.log(`   ✓ ${detailsType} details page loaded`);
+    
+    // Extract data using provided extraction function
+    const extractedData = await extractionFunction(page);
+    
+    console.log(`   ✓ Extracted ${extractedData.length} ${detailsType} entries from details page`);
+    
+    // Navigate back to profile
+    console.log('🔙 Navigating back to main profile page...');
+    await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await new Promise(r => setTimeout(r, 2000));
+    
+    return extractedData;
+  } catch (error) {
+    console.error(`Error extracting ${detailsType}:`, error);
+    // Try to return to main profile page even on error
+    try {
+      await page.goto(profileUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await new Promise(r => setTimeout(r, 2000));
+    } catch (navError) {
+      console.error('Failed to return to profile:', navError);
+    }
+    return [];
+  }
 }
 
+/**
+ * Extract experience data from LinkedIn details/experience page
+ */
+async function extractExperienceData(page) {
+  return await page.evaluate(() => {
+    const experiences = [];
+    const mainContent = document.querySelector('main') || document.body;
+    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+    
+    items.forEach(item => {
+      try {
+        // Get all visible text spans
+        const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+          .map(s => s.textContent.trim())
+          .filter(t => t && t.length > 0 && !t.includes('Someone at'));
+        
+        if (allSpans.length < 2) return; // Need at least title and company
+        
+        // First span is usually title, second is company with employment type
+        const title = allSpans[0] || '';
+        const companyLine = allSpans[1] || '';
+        
+        // Find dates (contains year or "Present")
+        const dates = allSpans.find(s => /\d{4}|Present/i.test(s) && !s.includes('Issued')) || '';
+        
+        // Find location (has comma, no years, not too long)
+        const location = allSpans.find(s => 
+          s.includes(',') && 
+          !/\d{4}/.test(s) && 
+          s.length < 100 &&
+          s !== title &&
+          s !== companyLine
+        ) || '';
+        
+        // Description is usually in a container with specific class or the longest non-metadata text
+        let description = '';
+        const descContainer = item.querySelector('.inline-show-more-text, .pvs-list__outer-container');
+        if (descContainer) {
+          description = descContainer.textContent.trim().replace(/\s+/g, ' ');
+        } else {
+          // Look for longer text that's not metadata
+          const longText = allSpans.find(s => 
+            s.length > 50 && 
+            s !== title && 
+            s !== companyLine && 
+            s !== dates && 
+            s !== location
+          );
+          if (longText) description = longText;
+        }
+        
+        // Filter out viewer data
+        const isViewerData = 
+          title.startsWith('Someone at') ||
+          companyLine.startsWith('Someone at') ||
+          title.includes('…') ||
+          (!dates && !companyLine);
+        
+        if (!isViewerData && title) {
+          experiences.push({
+            title,
+            company: companyLine,
+            dates,
+            location,
+            description
+          });
+        }
+      } catch (e) {
+        console.error('Error extracting experience item:', e);
+      }
+    });
+    
+    console.log(`     ✅ Extracted ${experiences.length} experiences from details page`);
+    return experiences;
+  });
+}
 
+/**
+ * Extract education data from LinkedIn details/education page
+ */
+async function extractEducationData(page) {
+  return await page.evaluate(() => {
+    const education = [];
+    
+    // Only select items from the main content area, not from "Who viewed" sidebar
+    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+    const items = mainContent.querySelectorAll('.pvs-list__item--line-separated, li.pvs-list__paged-list-item');
+    
+    items.forEach((item) => {
+      try {
+        const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]');
+        const degreeElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]');
+        const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+        
+        const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+          .map(s => s.textContent.trim())
+          .filter(t => t && t.length > 0);
+        
+        const edu = {
+          school: schoolElem?.textContent?.trim() || allSpans[0] || '',
+          degree: degreeElem?.textContent?.trim() || allSpans[1] || '',
+          field: allSpans[2] || '',
+          duration: dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}/.test(s)) || '',
+          description: ''
+        };
+        
+        // Filter out viewer data (same logic as experiences)
+        const isViewerData = 
+          edu.school.startsWith('Someone at') ||
+          edu.degree.startsWith('Someone at') ||
+          edu.school.includes('…') ||
+          edu.school.includes('...') ||
+          (edu.school.match(/\bat\b/i) && !edu.degree && !edu.duration) ||
+          (!edu.duration && !edu.degree && edu.school);
+        
+        if (edu.school && !isViewerData) {
+          education.push(edu);
+        }
+      } catch (e) {
+        // Ignore
+      }
+    });
+    
+    return education;
+  });
+}
+
+/**
+ * Extract certification data from LinkedIn details/certifications page
+ */
+async function extractCertificationData(page) {
+  return await page.evaluate(() => {
+    const certifications = [];
+    const items = document.querySelectorAll('.pvs-list__item, li.pvs-list__paged-list-item, li.artdeco-list__item, li.pvs-list__item--line-separated');
+    
+    items.forEach((item) => {
+      try {
+        const nameElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]') ||
+                         item.querySelector('span.t-bold span[aria-hidden="true"]') ||
+                         item.querySelector('.pvs-entity__path span[aria-hidden="true"]');
+        const issuerElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]') ||
+                          item.querySelector('.pvs-entity__caption-wrapper span[aria-hidden="true"]');
+        const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
+        
+        const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+          .map(s => s.textContent.trim())
+          .filter(t => t && t.length > 0 && t.length < 500);
+        
+        const cert = {
+          name: nameElem?.textContent?.trim() || allSpans[0] || '',
+          issuer: issuerElem?.textContent?.trim() || allSpans[1] || '',
+          date: '',
+          credentialId: '',
+          url: ''
+        };
+        
+        const dateSpan = dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}|Issued|Expires/i.test(s));
+        if (dateSpan) cert.date = dateSpan;
+        
+        const credentialSpan = allSpans.find(s => /Credential ID|ID:/i.test(s));
+        if (credentialSpan) {
+          cert.credentialId = credentialSpan.replace(/Credential ID:?/i, '').trim();
+        }
+        
+        const link = item.querySelector('a[href*="credential"], a[href*="credly"], a[href*="certificate"]');
+        if (link) cert.url = link.href;
+        
+        if (cert.name || cert.issuer) {
+          certifications.push(cert);
+        }
+      } catch (e) {
+        // Ignore
+      }
+    });
+    
+    return certifications;
+  });
+}
 
 async function expandAllSections(page) {
   console.log('  → Simple expand (skipping "Show all" buttons)...');
@@ -905,7 +940,7 @@ async function expandAllSections(page) {
     let clicked = 0;
     for (const btn of buttons) {
       const text = btn.textContent.toLowerCase();
-      // Skip "Show all" to not interfere with expandExperienceSection
+      // Skip "Show all" buttons
       if (text.includes('show all')) continue;
       
       if (expandTexts.some(exp => text.includes(exp.toLowerCase()))) {
@@ -921,11 +956,63 @@ async function expandAllSections(page) {
   });
 }
 
+// Endpoint to switch browser to headless mode
+app.post('/api/switch-to-headless', async (req, res) => {
+  try {
+    if (!browser) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No browser currently running' 
+      });
+    }
+
+    console.log('🔄 Switching to headless mode...');
+    
+    // Close current browser
+    await browser.close();
+    browser = null;
+    page = null;
+
+    // Relaunch in headless mode with same user data
+    browser = await puppeteer.launch({
+      headless: true,
+      userDataDir: USER_DATA_DIR, // Reuse same session
+      defaultViewport: null,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-blink-features=AutomationControlled',
+        '--window-size=1280,800'
+      ]
+    });
+
+    page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+
+    console.log('✅ Browser now running in headless mode');
+    
+    res.json({ 
+      success: true, 
+      message: 'Browser switched to headless mode. Session preserved.' 
+    });
+
+  } catch (error) {
+    console.error('Error switching to headless:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 LinkedIn Scraper Backend (${BUILD_VERSION}) running on http://localhost:${PORT}`);
   console.log('📡 API endpoints ready:');
-  console.log('   POST /api/start-browser - Start browser for login');
+  console.log('   POST /api/start-browser - Start browser (body: {headless: true/false})');
   console.log('   GET  /api/check-login - Check if logged in');
+  console.log('   GET  /api/console-logs - Get browser console output');
+  console.log('   POST /api/clear-logs - Clear console logs');
+  console.log('   POST /api/switch-to-headless - Switch running browser to headless mode');
   console.log('   POST /api/scrape-profile - Extract profile data');
   console.log('   POST /api/close-browser - Close browser');
 });
