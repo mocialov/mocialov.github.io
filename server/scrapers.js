@@ -321,6 +321,7 @@ function extractProfileData() {
         projects: [],
         volunteer: [],
         languages: [],
+        patents: [],
         timestamp: new Date().toISOString()
     };
 
@@ -611,6 +612,16 @@ function extractProfileData() {
         }
     }
 
+    // Patents - extract from the profile page
+    try {
+        const patentsData = extractPatentsData();
+        if (patentsData && patentsData.length > 0) {
+            extractedData.patents = patentsData;
+        }
+    } catch (e) {
+        console.error('Error extracting patents:', e);
+    }
+
     return extractedData;
 }
 
@@ -884,6 +895,176 @@ function extractLanguagesData() {
     return [...new Set(languages)];
 }
 
+/**
+ * Extract patents data from LinkedIn profile page OR details/patents page
+ * Works on both the main profile page and dedicated /details/patents/ page
+ */
+function extractPatentsData() {
+    const patents = [];
+
+    // First, check if we're on a details page (main content area)
+    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+    let items = [];
+
+    // Try to find patents in the main content area (works for details pages)
+    items = Array.from(mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated'));
+
+    // If we found list items in main content, filter for patent-related ones
+    if (items.length > 0) {
+        // On details page, all items should be patents
+        // On profile page, we need to filter
+        const filteredItems = items.filter(item => {
+            const ariaLabels = Array.from(item.querySelectorAll('[aria-label]'))
+                .map(el => el.getAttribute('aria-label') || '')
+                .join(' ')
+                .toLowerCase();
+
+            const links = Array.from(item.querySelectorAll('a'))
+                .map(a => a.href || '')
+                .join(' ')
+                .toLowerCase();
+
+            const text = item.textContent || '';
+
+            // Check if this item is patent-related
+            return (
+                ariaLabels.includes('patent') ||
+                links.includes('patent') ||
+                links.includes('google.com/patents') ||
+                // Check for patent numbers in text (e.g., US20220147766A1)
+                /[A-Z]{2}\d{8,}[A-Z]?\d*/i.test(text)
+            );
+        });
+
+        // Use filtered items if we found any patent-related ones
+        if (filteredItems.length > 0) {
+            items = filteredItems;
+        } else {
+            // No patent-related items found
+            // If we have a small number of items (< 10), we might be on a details page where all items are patents
+            // If we have many items (>= 10), we're probably on the wrong page or profile page without patents
+            if (items.length >= 10) {
+                items = []; // Too many items and none are patent-related - not on patents page
+            }
+            // else: keep the items (might be on a details page with few patents)
+        }
+    }
+
+    // Fallback: try to find a dedicated patents section on profile page
+    if (items.length === 0) {
+        const patentsSection = document.querySelector('#patents, section:has(#patents)');
+        if (patentsSection) {
+            const patentsContainer = patentsSection.closest('section');
+            if (patentsContainer) {
+                items = Array.from(patentsContainer.querySelectorAll('li.artdeco-list__item, li.pvs-list__paged-list-item, li.pvs-list__item--line-separated'));
+            }
+        }
+    }
+
+    items.forEach(item => {
+        try {
+            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+                .map(s => s.textContent.trim())
+                .filter(t => t && t.length > 0);
+
+            if (allSpans.length === 0) return;
+
+            const patent = {
+                title: '',
+                number: '',
+                issuer: '',
+                date: '',
+                url: '',
+                description: ''
+            };
+
+            // Patent number/title is usually the first bold span
+            // Format is often "Patent Number - Title" (e.g., "US20220147766A1 - Vertex interpolation...")
+            const titleElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
+            if (titleElem) {
+                const fullTitle = titleElem.textContent.trim();
+                patent.title = fullTitle;
+
+                // Try to extract patent number if it's in the format "NUMBER - Title"
+                if (fullTitle.includes(' - ')) {
+                    const parts = fullTitle.split(' - ');
+                    if (parts[0] && /^[A-Z]{2}\d+[A-Z]?\d*$/i.test(parts[0].trim())) {
+                        patent.number = parts[0].trim();
+                        patent.title = parts.slice(1).join(' - ').trim();
+                    }
+                }
+            } else if (allSpans.length > 0) {
+                patent.title = allSpans[0];
+            }
+
+            // Try to find issuer and date
+            // Format can be: "Issued · Date" or "Patent Office"
+            const metadataSpan = allSpans.find(s =>
+                s !== patent.title &&
+                (s.toLowerCase().includes('issued') ||
+                    s.toLowerCase().includes('patent') ||
+                    /\d{4}/.test(s))
+            );
+
+            if (metadataSpan) {
+                if (metadataSpan.includes('·')) {
+                    const parts = metadataSpan.split('·').map(s => s.trim());
+                    parts.forEach(part => {
+                        if (/\d{4}/.test(part)) {
+                            patent.date = part;
+                        } else if (part.toLowerCase().includes('issued') || part.toLowerCase().includes('patent')) {
+                            patent.issuer = part;
+                        }
+                    });
+                } else if (/\d{4}/.test(metadataSpan)) {
+                    patent.date = metadataSpan;
+                } else {
+                    patent.issuer = metadataSpan;
+                }
+            }
+
+            // Get description
+            const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
+            if (descElem) {
+                patent.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+            } else {
+                // Try to find description from remaining spans
+                const descCandidate = allSpans.find(s =>
+                    s !== patent.title &&
+                    s !== metadataSpan &&
+                    s.length > 30
+                );
+                if (descCandidate) {
+                    patent.description = descCandidate;
+                }
+            }
+
+            // Get URL if available
+            const linkElem = item.querySelector('a.optional-action-target-wrapper, a[href*="patent"], a[href*="google.com/patents"]');
+            if (linkElem) {
+                patent.url = linkElem.href;
+            }
+
+            // Filter out viewer data / garbage
+            const isGarbage =
+                patent.title.startsWith('Someone at') ||
+                patent.title.includes('…') ||
+                patent.title.toLowerCase().includes('show all') ||
+                patent.title.toLowerCase().includes('see all') ||
+                !patent.title; // Must have a title
+
+            if (!isGarbage) {
+                patents.push(patent);
+            }
+
+        } catch (e) {
+            console.error('Error extracting patent item:', e);
+        }
+    });
+
+    return patents;
+}
+
 module.exports = {
     extractExperienceData,
     extractEducationData,
@@ -895,5 +1076,6 @@ module.exports = {
     extractVolunteeringData,
     extractPublicationsData,
     extractHonorsData,
-    extractLanguagesData
+    extractLanguagesData,
+    extractPatentsData
 };

@@ -103,6 +103,18 @@ function App() {
     });
   };
 
+  // Filter out viewer data from patents
+  const filterPatentsData = (patents) => {
+    if (!patents) return [];
+    return patents.filter(patent => {
+      const isViewerData =
+        patent.title?.startsWith('Someone at') ||
+        patent.title?.includes('…') ||
+        (!patent.number && !patent.url && !patent.description);
+      return !isViewerData;
+    });
+  };
+
   const startBrowser = async () => {
     setLoading(true);
     setStatus('Opening browser...');
@@ -232,7 +244,7 @@ function App() {
 
       if (result.success) {
         setLinkedinData(result.data);
-        setStatus(`✅ Data extracted successfully!\n\n📊 Found:\n  • ${result.data.experience.length} experiences\n  • ${result.data.education.length} education entries\n  • ${result.data.projects?.length || 0} projects\n  • ${result.data.volunteer?.length || 0} volunteering\n  • ${result.data.publications?.length || 0} publications\n  • ${result.data.honors?.length || 0} honors\n  • ${result.data.languages?.length || 0} languages\n  • ${result.data.skills.length} skills\n  • ${result.data.certifications.length} certifications`);
+        setStatus(`✅ Data extracted successfully!\n\n📊 Found:\n  • ${result.data.experience.length} experiences\n  • ${result.data.education.length} education entries\n  • ${result.data.projects?.length || 0} projects\n  • ${result.data.volunteer?.length || 0} volunteering\n  • ${result.data.publications?.length || 0} publications\n  • ${result.data.honors?.length || 0} honors\n  • ${result.data.languages?.length || 0} languages\n  • ${result.data.patents?.length || 0} patents\n  • ${result.data.skills.length} skills\n  • ${result.data.certifications.length} certifications`);
       } else {
         setStatus(`❌ Error: ${result.error || 'Failed to extract data'}`);
         if (result.error && result.error.includes('Not logged in')) {
@@ -266,7 +278,8 @@ function App() {
       volunteer: filterVolunteeringData(linkedinData.volunteer),
       publications: filterPublicationsData(linkedinData.publications),
       honors: filterHonorsData(linkedinData.honors),
-      languages: filterLanguagesData(linkedinData.languages)
+      languages: filterLanguagesData(linkedinData.languages),
+      patents: filterPatentsData(linkedinData.patents)
     };
 
     console.log(`Filtered ${linkedinData.experience.length - filteredData.experience.length} viewer entries from experiences`);
@@ -307,7 +320,7 @@ function App() {
             <li><strong>ALL experiences</strong> (including hidden ones + nested roles)</li>
             <li>Education, Skills, Certifications</li>
             <li>Projects, <strong>Volunteering</strong>, Languages</li>
-            <li><strong>Publications, Honors & Awards</strong></li>
+            <li><strong>Publications, Honors & Awards, Patents</strong></li>
           </ul>
         </div>
 
@@ -641,6 +654,39 @@ function App() {
               <div className="skills-grid">
                 {filterLanguagesData(linkedinData.languages).map((language, i) => (
                   <span key={i} className="skill-badge skill-primary">{language}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 11: PATENTS */}
+          {linkedinData.patents && filterPatentsData(linkedinData.patents).length > 0 && (
+            <div className="section">
+              <h2 className="section-title">💡 Patents</h2>
+              <div className="timeline">
+                {filterPatentsData(linkedinData.patents).map((patent, i) => (
+                  <div key={i} className="experience-item">
+                    <div className="timeline-marker"></div>
+                    <div className="experience-content">
+                      <h3 className="experience-title">
+                        {patent.url ? (
+                          <a href={patent.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {patent.title} 🔗
+                          </a>
+                        ) : patent.title}
+                      </h3>
+                      {patent.number && (
+                        <div className="experience-company">Patent Number: {patent.number}</div>
+                      )}
+                      <div className="experience-meta">
+                        {patent.issuer && <span className="experience-company">{patent.issuer}</span>}
+                        {patent.date && <span className="experience-duration">• {patent.date}</span>}
+                      </div>
+                      {patent.description && (
+                        <div className="experience-description">{patent.description}</div>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

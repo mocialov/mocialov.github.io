@@ -302,6 +302,15 @@ app.post('/api/scrape-profile', async (req, res) => {
       (p) => p.evaluate(scrapers.extractLanguagesData)
     );
 
+    // Extract patents from details/patents page (if it exists)
+    let allPatents = [];
+    allPatents = await navigateAndExtractDetailsPage(
+      page,
+      profileUrl,
+      'patents',
+      (p) => p.evaluate(scrapers.extractPatentsData)
+    );
+
     console.log('📊 Extracting supplementary data from main profile...');
 
     // Extract all data
@@ -359,6 +368,12 @@ app.post('/api/scrape-profile', async (req, res) => {
     if (allLanguages && allLanguages.length > 0) {
       data.languages = allLanguages;
       console.log(`✅ Using ${allLanguages.length} languages from details page`);
+    }
+
+    // Replace the patents data with what we extracted from the details page
+    if (allPatents && allPatents.length > 0) {
+      data.patents = allPatents;
+      console.log(`✅ Using ${allPatents.length} patents from details page`);
     }
 
     // Final cleanup: Filter out any viewer data that slipped through
@@ -425,6 +440,14 @@ app.post('/api/scrape-profile', async (req, res) => {
       return !isViewerData;
     });
 
+    data.patents = (data.patents || []).filter(patent => {
+      const isViewerData =
+        patent.title?.startsWith('Someone at') ||
+        patent.title?.includes('…') ||
+        (!patent.number && !patent.url && !patent.description);
+      return !isViewerData;
+    });
+
     console.log('✅ Data extraction complete!');
     console.log('📋 Extracted:', {
       name: data.name,
@@ -435,7 +458,8 @@ app.post('/api/scrape-profile', async (req, res) => {
       volunteering: data.volunteer?.length || 0,
       publications: data.publications?.length || 0,
       honors: data.honors?.length || 0,
-      languages: data.languages?.length || 0
+      languages: data.languages?.length || 0,
+      patents: data.patents?.length || 0
     });
 
     res.json({
