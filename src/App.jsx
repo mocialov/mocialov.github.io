@@ -16,7 +16,7 @@ function App() {
   const filterViewerData = (experiences) => {
     if (!experiences) return [];
     return experiences.filter(exp => {
-      const isViewerData = 
+      const isViewerData =
         exp.title?.startsWith('Someone at') ||
         exp.company?.startsWith('Someone at') ||
         exp.title?.includes('…') ||
@@ -32,7 +32,7 @@ function App() {
     if (!certifications) return [];
     return certifications.filter(cert => {
       // Filter out entries that look like "who viewed me" data
-      const isViewerData = 
+      const isViewerData =
         cert.name?.startsWith('Someone at') ||
         cert.issuer?.startsWith('Someone at') ||
         cert.name?.includes('Someone at') ||
@@ -43,6 +43,62 @@ function App() {
         (cert.name?.includes(' at ') && !cert.issuer && !cert.date) ||
         // Filter entries that don't have both name AND issuer (likely incomplete/viewer data)
         (!cert.name || !cert.issuer);
+      return !isViewerData;
+    });
+  };
+
+  // Filter out viewer data from projects
+  const filterProjectsData = (projects) => {
+    if (!projects) return [];
+    return projects.filter(proj => {
+      const isViewerData =
+        proj.title?.startsWith('Someone at') ||
+        proj.title?.includes('…') ||
+        proj.title?.includes('...') ||
+        (!proj.date && !proj.description);
+      return !isViewerData;
+    });
+  };
+
+  // Filter out viewer data from volunteering
+  const filterVolunteeringData = (volunteering) => {
+    if (!volunteering) return [];
+    return volunteering.filter(vol => {
+      const isViewerData =
+        vol.role?.startsWith('Someone at') ||
+        vol.organization?.startsWith('Someone at') ||
+        (!vol.date && !vol.organization);
+      return !isViewerData;
+    });
+  };
+
+  // Filter out viewer data from publications
+  const filterPublicationsData = (publications) => {
+    if (!publications) return [];
+    return publications.filter(pub => {
+      const isViewerData =
+        pub.title?.startsWith('Someone at') ||
+        (!pub.date && !pub.publisher && !pub.url);
+      return !isViewerData;
+    });
+  };
+
+  // Filter out viewer data from honors
+  const filterHonorsData = (honors) => {
+    if (!honors) return [];
+    return honors.filter(honor => {
+      const isViewerData =
+        honor.title?.startsWith('Someone at') ||
+        (!honor.date && !honor.issuer);
+      return !isViewerData;
+    });
+  };
+
+  // Filter out viewer data from languages (usually clean, but for consistency)
+  const filterLanguagesData = (languages) => {
+    if (!languages) return [];
+    return languages.filter(lang => {
+      const isViewerData = lang?.includes('Someone at') || lang?.includes('…');
       return !isViewerData;
     });
   };
@@ -148,9 +204,9 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileUrl: 'https://www.linkedin.com/in/mocialov/' })
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         setStatus('✅ Navigated to profile! Now you can extract data.');
       } else {
@@ -164,19 +220,19 @@ function App() {
 
   const extractData = async () => {
     setLoading(true);
-    setStatus('🔄 Extracting LinkedIn data...\n\n✓ Navigating to profile\n⏳ Scrolling through page\n⏳ Expanding all sections\n⏳ Expanding ALL experiences (including hidden ones)\n⏳ Extracting data...\n\nThis takes 20-30 seconds, please wait...');
+    setStatus('🔄 Extracting LinkedIn data... (Attempting to find ALL 5+ projects)\n\n✓ Navigating to profile\n⏳ Scrolling through page\n⏳ Expanding all sections\n⏳ Populating Project Data (Method: Universal List Selector)\n⏳ Extracting data...\n\nThis takes 20-30 seconds, please wait...');
     try {
       const response = await fetch(`${API_URL}/api/scrape-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileUrl: 'https://www.linkedin.com/in/mocialov/' })
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         setLinkedinData(result.data);
-        setStatus(`✅ Data extracted successfully!\n\n📊 Found:\n  • ${result.data.experience.length} experiences\n  • ${result.data.education.length} education entries\n  • ${result.data.skills.length} skills\n  • ${result.data.certifications.length} certifications`);
+        setStatus(`✅ Data extracted successfully!\n\n📊 Found:\n  • ${result.data.experience.length} experiences\n  • ${result.data.education.length} education entries\n  • ${result.data.projects?.length || 0} projects\n  • ${result.data.volunteer?.length || 0} volunteering\n  • ${result.data.publications?.length || 0} publications\n  • ${result.data.honors?.length || 0} honors\n  • ${result.data.languages?.length || 0} languages\n  • ${result.data.skills.length} skills\n  • ${result.data.certifications.length} certifications`);
       } else {
         setStatus(`❌ Error: ${result.error || 'Failed to extract data'}`);
         if (result.error && result.error.includes('Not logged in')) {
@@ -202,16 +258,25 @@ function App() {
 
   const downloadData = () => {
     // Filter out viewer data before downloading
-    const filteredData = { 
+    const filteredData = {
       ...linkedinData,
       experience: filterViewerData(linkedinData.experience),
-      certifications: filterCertificationViewerData(linkedinData.certifications)
+      projects: filterProjectsData(linkedinData.projects),
+      certifications: filterCertificationViewerData(linkedinData.certifications),
+      volunteer: filterVolunteeringData(linkedinData.volunteer),
+      publications: filterPublicationsData(linkedinData.publications),
+      honors: filterHonorsData(linkedinData.honors),
+      languages: filterLanguagesData(linkedinData.languages)
     };
-    
+
     console.log(`Filtered ${linkedinData.experience.length - filteredData.experience.length} viewer entries from experiences`);
+    console.log(`Filtered ${(linkedinData.projects?.length || 0) - (filteredData.projects?.length || 0)} viewer entries from projects`);
     console.log(`Filtered ${linkedinData.certifications.length - filteredData.certifications.length} viewer entries from certifications`);
-    console.log(`Final count: ${filteredData.experience.length} experiences, ${filteredData.certifications.length} certifications`);
-    
+    console.log(`Filtered ${(linkedinData.volunteer?.length || 0) - (filteredData.volunteer?.length || 0)} viewer entries from volunteering`);
+    console.log(`Filtered ${(linkedinData.publications?.length || 0) - (filteredData.publications?.length || 0)} viewer entries from publications`);
+    console.log(`Filtered ${(linkedinData.honors?.length || 0) - (filteredData.honors?.length || 0)} viewer entries from honors`);
+    console.log(`Final count: ${filteredData.experience.length} experiences, ${filteredData.projects?.length || 0} projects, ${filteredData.volunteer?.length || 0} volunteering, ${filteredData.publications?.length || 0} publications, ${filteredData.honors?.length || 0} honors, ${filteredData.certifications.length} certifications`);
+
     const dataStr = JSON.stringify(filteredData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -234,18 +299,19 @@ function App() {
           <li><strong>Log In</strong> - Sign into LinkedIn in the browser window (you'll see it open)</li>
           <li><strong>Extract Data</strong> - Automatically scrapes everything, including ALL experiences</li>
         </ol>
-        
-        <div style={{marginTop: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0891b2'}}>
+
+        <div style={{ marginTop: 16, padding: 12, background: '#f0f9ff', borderRadius: 8, borderLeft: '4px solid #0891b2' }}>
           <strong>✨ What gets extracted:</strong>
-          <ul style={{marginTop: 8, marginBottom: 0}}>
+          <ul style={{ marginTop: 8, marginBottom: 0 }}>
             <li>Profile info (name, headline, photo, about)</li>
             <li><strong>ALL experiences</strong> (including hidden ones + nested roles)</li>
             <li>Education, Skills, Certifications</li>
-            <li>Projects, Volunteer work, Languages</li>
+            <li>Projects, <strong>Volunteering</strong>, Languages</li>
+            <li><strong>Publications, Honors & Awards</strong></li>
           </ul>
         </div>
 
-        <p style={{marginTop: 12, fontSize: 14, color: '#6b7280'}}>
+        <p style={{ marginTop: 12, fontSize: 14, color: '#6b7280' }}>
           💡 The extraction takes 20-30 seconds and automatically expands all sections
         </p>
       </div>
@@ -256,11 +322,11 @@ function App() {
             <button onClick={startBrowser} disabled={loading} className="button">
               {loading ? 'Starting...' : '🚀 Start Browser & Login'}
             </button>
-            <button 
-              onClick={startBrowserHeadless} 
-              disabled={loading} 
-              className="button" 
-              style={{background: '#8b5cf6'}}
+            <button
+              onClick={startBrowserHeadless}
+              disabled={loading}
+              className="button"
+              style={{ background: '#8b5cf6' }}
               title="Use this if you're already logged in - runs in background"
             >
               {loading ? 'Starting...' : '👻 Start Headless (Already Logged In)'}
@@ -276,41 +342,41 @@ function App() {
 
         {loggedIn && (
           <>
-            <button onClick={extractData} disabled={loading} className="button" style={{background: '#10b981', fontSize: '18px', padding: '16px 32px'}}>
+            <button onClick={extractData} disabled={loading} className="button" style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}>
               {loading ? '⏳ Extracting Data... (20-30s)' : '📊 Extract All My Data'}
             </button>
-            <button onClick={switchToHeadless} disabled={loading} className="button" style={{background: '#8b5cf6', fontSize: '14px'}}>
+            <button onClick={switchToHeadless} disabled={loading} className="button" style={{ background: '#8b5cf6', fontSize: '14px' }}>
               {loading ? 'Switching...' : '👻 Switch to Headless Mode'}
             </button>
-            <button onClick={navigateToProfile} disabled={loading} className="button" style={{background: '#6b7280', fontSize: '14px'}}>
+            <button onClick={navigateToProfile} disabled={loading} className="button" style={{ background: '#6b7280', fontSize: '14px' }}>
               {loading ? 'Navigating...' : '🧭 Go to Profile (optional)'}
             </button>
           </>
         )}
 
         {browserOpen && (
-          <button onClick={closeBrowser} className="button" style={{background: '#ef4444'}}>
+          <button onClick={closeBrowser} className="button" style={{ background: '#ef4444' }}>
             ❌ Close Browser
           </button>
         )}
       </div>
 
       {status && (
-        <div className={status.includes('❌') ? 'error' : 'result'} style={{marginTop: 20, whiteSpace: 'pre-line'}}>
+        <div className={status.includes('❌') ? 'error' : 'result'} style={{ marginTop: 20, whiteSpace: 'pre-line' }}>
           {status}
         </div>
       )}
 
       {browserOpen && (
-        <div style={{marginTop: 20}}>
-          <button 
-            onClick={toggleLogs} 
-            className="button" 
-            style={{background: '#6366f1', fontSize: '14px'}}
+        <div style={{ marginTop: 20 }}>
+          <button
+            onClick={toggleLogs}
+            className="button"
+            style={{ background: '#6366f1', fontSize: '14px' }}
           >
             {showLogs ? '🔽 Hide Browser Console' : '🔼 Show Browser Console'}
           </button>
-          
+
           {showLogs && (
             <div style={{
               marginTop: 12,
@@ -323,24 +389,24 @@ function App() {
               fontFamily: 'monospace',
               fontSize: '12px'
             }}>
-              <div style={{marginBottom: 8, color: '#9ca3af', fontSize: 11}}>
+              <div style={{ marginBottom: 8, color: '#9ca3af', fontSize: 11 }}>
                 Browser Console Output ({consoleLogs.length} messages)
               </div>
               {consoleLogs.length === 0 ? (
-                <div style={{color: '#9ca3af'}}>No console output yet...</div>
+                <div style={{ color: '#9ca3af' }}>No console output yet...</div>
               ) : (
                 consoleLogs.map((log, i) => (
                   <div key={i} style={{
                     padding: '4px 0',
                     borderBottom: '1px solid #333',
-                    color: log.type === 'error' ? '#f87171' : 
-                           log.type === 'warn' ? '#fbbf24' : 
-                           log.type === 'info' ? '#60a5fa' : '#d4d4d4'
+                    color: log.type === 'error' ? '#f87171' :
+                      log.type === 'warn' ? '#fbbf24' :
+                        log.type === 'info' ? '#60a5fa' : '#d4d4d4'
                   }}>
-                    <span style={{color: '#9ca3af', marginRight: 8}}>
+                    <span style={{ color: '#9ca3af', marginRight: 8 }}>
                       [{new Date(log.timestamp).toLocaleTimeString()}]
                     </span>
-                    <span style={{color: '#a78bfa', marginRight: 8}}>
+                    <span style={{ color: '#a78bfa', marginRight: 8 }}>
                       {log.type.toUpperCase()}
                     </span>
                     {log.text}
@@ -388,7 +454,7 @@ function App() {
                   <summary className="skills-expand-btn">
                     View all {linkedinData.skills.length} skills
                   </summary>
-                  <div className="skills-grid" style={{marginTop: 12}}>
+                  <div className="skills-grid" style={{ marginTop: 12 }}>
                     {linkedinData.skills.slice(15).map((skill, i) => (
                       <span key={i} className="skill-badge">{skill}</span>
                     ))}
@@ -425,7 +491,7 @@ function App() {
               </div>
             </div>
           )}
-          
+
           {/* SECTION 4: EDUCATION */}
           {linkedinData.education && linkedinData.education.length > 0 && (
             <div className="section">
@@ -460,13 +526,133 @@ function App() {
             </div>
           )}
 
-          <button onClick={downloadData} className="button" style={{marginTop: 16}}>
+          {/* SECTION 6: PROJECTS */}
+          {linkedinData.projects && filterProjectsData(linkedinData.projects).length > 0 && (
+            <div className="section">
+              <h2 className="section-title">🚀 Projects</h2>
+              <div className="timeline">
+                {filterProjectsData(linkedinData.projects).map((proj, i) => (
+                  <div key={i} className="experience-item">
+                    <div className="timeline-marker"></div>
+                    <div className="experience-content">
+                      <h3 className="experience-title">
+                        {proj.url ? (
+                          <a href={proj.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {proj.title} 🔗
+                          </a>
+                        ) : proj.title}
+                      </h3>
+                      <div className="experience-meta">
+                        <span className="experience-duration">{proj.date}</span>
+                      </div>
+                      {proj.description && (
+                        <div className="experience-description">{proj.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 7: VOLUNTEERING */}
+          {linkedinData.volunteer && filterVolunteeringData(linkedinData.volunteer).length > 0 && (
+            <div className="section">
+              <h2 className="section-title">❤️ Volunteering</h2>
+              <div className="timeline">
+                {filterVolunteeringData(linkedinData.volunteer).map((vol, i) => (
+                  <div key={i} className="experience-item">
+                    <div className="timeline-marker"></div>
+                    <div className="experience-content">
+                      <h3 className="experience-title">{vol.role}</h3>
+                      <div className="experience-company">{vol.organization}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">{vol.date} {vol.duration && `• ${vol.duration}`}</span>
+                        {vol.cause && <span className="experience-location">• {vol.cause}</span>}
+                      </div>
+                      {vol.description && (
+                        <div className="experience-description">{vol.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 8: PUBLICATIONS */}
+          {linkedinData.publications && filterPublicationsData(linkedinData.publications).length > 0 && (
+            <div className="section">
+              <h2 className="section-title">📚 Publications</h2>
+              <div className="timeline">
+                {filterPublicationsData(linkedinData.publications).map((pub, i) => (
+                  <div key={i} className="experience-item">
+                    <div className="timeline-marker"></div>
+                    <div className="experience-content">
+                      <h3 className="experience-title">
+                        {pub.url ? (
+                          <a href={pub.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {pub.title} 🔗
+                          </a>
+                        ) : pub.title}
+                      </h3>
+                      <div className="experience-company">{pub.publisher}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">{pub.date}</span>
+                      </div>
+                      {pub.description && (
+                        <div className="experience-description">{pub.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 9: HONORS & AWARDS */}
+          {linkedinData.honors && filterHonorsData(linkedinData.honors).length > 0 && (
+            <div className="section">
+              <h2 className="section-title">🏆 Honors & Awards</h2>
+              <div className="timeline">
+                {filterHonorsData(linkedinData.honors).map((honor, i) => (
+                  <div key={i} className="experience-item">
+                    <div className="timeline-marker"></div>
+                    <div className="experience-content">
+                      <h3 className="experience-title">{honor.title}</h3>
+                      <div className="experience-company">{honor.issuer}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">{honor.date}</span>
+                      </div>
+                      {honor.description && (
+                        <div className="experience-description">{honor.description}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* SECTION 10: LANGUAGES */}
+          {linkedinData.languages && filterLanguagesData(linkedinData.languages).length > 0 && (
+            <div className="section">
+              <h2 className="section-title">🌐 Languages</h2>
+              <div className="skills-grid">
+                {filterLanguagesData(linkedinData.languages).map((language, i) => (
+                  <span key={i} className="skill-badge skill-primary">{language}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button onClick={downloadData} className="button" style={{ marginTop: 16 }}>
             💾 Download JSON
           </button>
 
-          <details style={{marginTop: 16}}>
-            <summary style={{cursor: 'pointer', marginBottom: 8}}>View Raw JSON</summary>
-            <pre style={{fontSize: 12, overflow: 'auto'}}>{JSON.stringify(linkedinData, null, 2)}</pre>
+          <details style={{ marginTop: 16 }}>
+            <summary style={{ cursor: 'pointer', marginBottom: 8 }}>View Raw JSON</summary>
+            <pre style={{ fontSize: 12, overflow: 'auto' }}>{JSON.stringify(linkedinData, null, 2)}</pre>
           </details>
         </div>
       )}
