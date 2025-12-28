@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import CV from './components/CV.jsx';
 import './styles.css';
 
 const API_URL = 'http://localhost:3001';
@@ -305,7 +306,7 @@ function App() {
       <h1 className="title">🔗 LinkedIn Profile Extractor</h1>
       <p className="subtitle">Extract ALL your LinkedIn profile data - including all past workplaces</p>
 
-      <div className="instructions">
+      {/* <div className="instructions">
         <h3>📋 Simple 3-Step Process:</h3>
         <ol>
           <li><strong>Start Browser</strong> - Opens LinkedIn automatically</li>
@@ -327,7 +328,7 @@ function App() {
         <p style={{ marginTop: 12, fontSize: 14, color: '#6b7280' }}>
           💡 The extraction takes 20-30 seconds and automatically expands all sections
         </p>
-      </div>
+      </div> */}
 
       <div className="button-group">
         {!browserOpen && (
@@ -375,13 +376,13 @@ function App() {
       </div>
 
       {status && (
-        <div className={status.includes('❌') ? 'error' : 'result'} style={{ marginTop: 20, whiteSpace: 'pre-line' }}>
+        <div className={status.includes('❌') ? 'error' : 'status'} style={{ marginTop: 20, whiteSpace: 'pre-line' }}>
           {status}
         </div>
       )}
 
       {browserOpen && (
-        <div style={{ marginTop: 20 }}>
+        <div className="logs-panel" style={{ marginTop: 20 }}>
           <button
             onClick={toggleLogs}
             className="button"
@@ -433,6 +434,19 @@ function App() {
 
       {linkedinData && (
         <div className="result">
+          <div className="cv-actions">
+            <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
+              🧾 Download PDF (Print)
+            </button>
+            <button onClick={downloadData} className="button" style={{ background: '#374151' }}>
+              💾 Download JSON
+            </button>
+          </div>
+
+          {/* CV Page (Print-Optimized) */}
+          <CV data={linkedinData} />
+
+          {/* Visual Profile (Interactive, on-screen) */}
           {/* SECTION 1: HEADER - Contact & Profile Summary */}
           <div className="profile-header">
             {linkedinData.image && (
@@ -691,10 +705,6 @@ function App() {
               </div>
             </div>
           )}
-
-          <button onClick={downloadData} className="button" style={{ marginTop: 16 }}>
-            💾 Download JSON
-          </button>
 
           <details style={{ marginTop: 16 }}>
             <summary style={{ cursor: 'pointer', marginBottom: 8 }}>View Raw JSON</summary>

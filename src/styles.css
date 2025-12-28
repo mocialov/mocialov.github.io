@@ -115,6 +115,14 @@ body {
   padding: 24px;
 }
 
+.status {
+  margin-top: 24px;
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+}
+
 .error {
   color: #dc2626;
   background: #fef2f2;
@@ -540,4 +548,141 @@ details summary:hover {
   .section-title {
     font-size: 20px;
   }
+}
+
+/* ===== PRINT-OPTIMIZED CV ===== */
+.cv-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.cv-page {
+  background: #fff;
+  color: #111827;
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.cv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.cv-name {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0;
+}
+
+.cv-role {
+  font-size: 16px;
+  color: #4b5563;
+  margin-top: 6px;
+}
+
+.cv-contact a, .cv-contact {
+  color: #1f2937;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+/* CV contact location: inline on screen, stacked in print */
+.cv-contact--location { display: inline-flex; }
+.cv-contact__city, .cv-contact__country { display: inline; }
+.cv-contact--location .cv-contact__country::before { content: ', '; }
+
+.cv-section { margin-bottom: 12px; }
+.cv-section__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px;
+}
+.cv-summary { font-size: 14px; line-height: 1.5; }
+
+.cv-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-skill {
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.cv-list { display: flex; flex-direction: column; gap: 8px; }
+.cv-item__header { display: flex; justify-content: space-between; align-items: baseline; }
+.cv-item__role { font-weight: 700; font-size: 14px; }
+.cv-item__meta { display: flex; gap: 8px; color: #6b7280; font-size: 12px; }
+.cv-item__company { font-weight: 600; }
+.cv-item__date, .cv-item__loc { color: #6b7280; }
+.cv-bullets { margin: 6px 0 0 18px; font-size: 13px; }
+.cv-bullets li { line-height: 1.4; }
+
+.cv-inline { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
+.cv-inline li { list-style: none; }
+.cv-cert__name { font-weight: 600; }
+
+/* Print rules */
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  body {
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .container {
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: unset !important;
+    max-height: unset !important;
+    overflow: visible !important;
+  }
+  .title,
+  .subtitle,
+  .button-group,
+  .cv-actions,
+  .profile-header,
+  .status,
+  .button,
+  .logs-panel,
+  .section,
+  details,
+  .error {
+    display: none !important;
+  }
+  .result {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+  .cv-page {
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  /* Ensure ONLY the CV prints */
+  body * { visibility: hidden; }
+  #cv, #cv * { visibility: visible; }
+  #cv { position: absolute; left: 0; top: 0; width: 100%; }
+
+  /* LinkedIn contact hidden in print */
+  .cv-contact--linkedin { display: none !important; }
+
+  /* Location shown over two lines in print */
+  .cv-contact--location { display: block !important; }
+  .cv-contact__city { display: block !important; }
+  .cv-contact__country { display: block !important; }
+  .cv-contact--location .cv-contact__country::before { content: '' !important; }
+
+  /* Exclude Skills section from CV during print */
+  .cv-skills-section { display: none !important; }
 }
