@@ -1007,11 +1007,58 @@ function extractVolunteeringData() {
                 vol.cause = causeCandidate;
             }
 
-            // Description
-            const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
+            // Description: prefer explicit expandable text
+            let description = '';
+            const descElem = item.querySelector('.inline-show-more-text');
             if (descElem) {
-                vol.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+                description = (descElem.innerText || descElem.textContent || '').trim().replace(/\s+/g, ' ');
             }
+            // Fallback: parse sub-component rows under the volunteering item
+            if (!description) {
+                try {
+                    const sub = item.querySelector('.pvs-entity__sub-components');
+                    if (sub) {
+                        const rows = Array.from(sub.querySelectorAll('li.pvs-list__item--with-top-padding'));
+                        const parts = [];
+                        for (const li of rows) {
+                            // Prefer visible span text first
+                            const span = li.querySelector('span[aria-hidden="true"]');
+                            const text = (span?.textContent || li.textContent || '').replace(/\s+/g, ' ').trim();
+                            if (!text) continue;
+                            // Skip pure cause rows or duplicates of role/org/date/cause
+                            const t = text.trim();
+                            if (!t) continue;
+                            const lower = t.toLowerCase();
+                            const isDateLike = /\b\d{4}\b/.test(t) || /present/i.test(t);
+                            if (isDateLike) continue;
+                            if (t === vol.role || t === vol.organization || t === vol.date || t === vol.duration) continue;
+                            if (vol.cause && (t === vol.cause || lower === vol.cause.toLowerCase())) continue;
+                            // Skip obvious UI rows
+                            if (/add (?:media|link)|show more|see more/i.test(t)) continue;
+                            parts.push(t);
+                        }
+                        if (parts.length) {
+                            // Join parts, but avoid including any trailing labels
+                            description = parts.join(' ').trim();
+                        }
+                    }
+                } catch (e) {
+                    // ignore sub-component parsing errors
+                }
+            }
+            // Last resort: pick a long span that's not metadata
+            if (!description) {
+                const longText = allSpans.find(s =>
+                    s.length > 40 &&
+                    s !== vol.role &&
+                    s !== vol.organization &&
+                    s !== vol.date &&
+                    s !== vol.duration &&
+                    s !== vol.cause
+                );
+                if (longText) description = longText;
+            }
+            vol.description = description;
 
             // Filter out garbage/viewers
             const isGarbage =

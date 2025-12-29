@@ -32,6 +32,14 @@ export default function CV({ data }) {
     return !isViewerData;
   });
 
+  const filteredVolunteer = (data.volunteer || []).filter(vol => {
+    const isViewerData =
+      vol.role?.startsWith('Someone at') ||
+      vol.organization?.startsWith('Someone at') ||
+      (!vol.date && !vol.organization);
+    return !isViewerData;
+  });
+
   const filteredCerts = (data.certifications || []).filter(cert => {
     const isViewerData =
       cert.name?.startsWith('Someone at') ||
@@ -195,6 +203,33 @@ export default function CV({ data }) {
                     })()}
                   </div>
                 </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {filteredVolunteer.length > 0 && (
+        <section className="cv-section">
+          <h2 className="cv-section__title">Volunteering</h2>
+          <div className="cv-list">
+            {filteredVolunteer.map((vol, i) => (
+              <div key={i} className="cv-item">
+                <div className="cv-item__header">
+                  <div className="cv-item__role">{vol.role}</div>
+                  <div className="cv-item__meta">
+                    <span className="cv-item__company">{vol.organization}</span>
+                    <span className="cv-item__date">{[vol.date, vol.duration].filter(Boolean).join(' • ')}</span>
+                    {vol.cause && <span className="cv-item__loc">{vol.cause}</span>}
+                  </div>
+                </div>
+                {vol.description && (
+                  <ul className="cv-bullets">
+                    {safeList(vol.description).map((b, j) => (
+                      <li key={j}>{b}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
