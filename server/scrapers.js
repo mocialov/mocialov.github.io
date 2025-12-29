@@ -430,15 +430,54 @@ function extractProjectsData() {
                 if (!href.includes('miniProfile')) url = href.split('?')[0];
             }
 
-            // Description: Everything else
+            // Description: text between the top title and the Skills row
             let description = '';
-            // Try to find the "description" block specifically if possible
-            const descElem = item.querySelector('.inline-show-more-text');
-            if (descElem) {
-                description = descElem.innerText.trim().replace(/\s+/g, ' ');
-            } else {
-                // Fallback: Join lines that aren't title or date
-                description = lines.filter(l => l !== title && l !== date).join(' ').substring(0, 200);
+            try {
+                // Prefer structured sub-components if available
+                const sub = item.querySelector('.pvs-entity__sub-components');
+                if (sub) {
+                    const rowItems = Array.from(sub.querySelectorAll('li.pvs-list__item--with-top-padding'));
+                    // Find index of the first skills row
+                    const skillsIndex = rowItems.findIndex(li => /\bSkills:\b/i.test(li.textContent || ''));
+                    // Consider rows before the skills row (or all rows if none)
+                    const candidateRows = (skillsIndex === -1 ? rowItems : rowItems.slice(0, skillsIndex))
+                        // Skip link/thumbnail rows
+                        .filter(li => !li.querySelector('a.optional-action-target-wrapper'));
+
+                    const parts = [];
+                    for (const li of candidateRows) {
+                        const span = li.querySelector('span[aria-hidden="true"]');
+                        const text = (span?.textContent || li.textContent || '').replace(/\s+/g, ' ').trim();
+                        if (!text) continue;
+                        if (/\bSkills:\b/i.test(text)) continue;
+                        // Avoid repeating the title or date
+                        if (text === title || text === date) continue;
+                        parts.push(text);
+                    }
+                    if (parts.length) {
+                        description = parts.join(' ').trim();
+                    }
+                }
+            } catch (e) {
+                // ignore
+            }
+            if (!description) {
+                // Fallbacks: explicit expandable text or text-based heuristic
+                const descElem = item.querySelector('.inline-show-more-text');
+                if (descElem) {
+                    description = descElem.innerText.trim().replace(/\s+/g, ' ');
+                } else {
+                    description = lines
+                        .filter(l => l !== title && l !== date && !/\bSkills:\b/i.test(l))
+                        .join(' ')
+                        .substring(0, 300)
+                        .trim();
+                }
+            }
+            // Ensure we never carry over a trailing Skills label into description
+            if (description && /Skills:/i.test(description)) {
+                const cut = description.search(/Skills:/i);
+                if (cut !== -1) description = description.slice(0, cut).trim();
             }
 
             // Extract contextual skills (same approach as experiences)

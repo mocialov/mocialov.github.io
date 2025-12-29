@@ -413,8 +413,7 @@ app.post('/api/scrape-profile', async (req, res) => {
       const isViewerData =
         proj.title?.startsWith('Someone at') ||
         proj.title?.includes('…') ||
-        proj.title?.includes('...') ||
-        (!proj.date && !proj.description);
+        proj.title?.includes('...');
       return !isViewerData;
     });
 
