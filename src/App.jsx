@@ -16,6 +16,7 @@ function App() {
   const [showLogs, setShowLogs] = useState(false);
   const [excludedKeys, setExcludedKeys] = useState([]); // track removed items per section
   const [draftData, setDraftData] = useState(null); // editable copy
+  const [profileUrl, setProfileUrl] = useState('');
 
   // Sanitize and format summary HTML while allowing basic formatting
   const sanitizeSummaryHtml = (htmlOrText) => {
@@ -229,6 +230,33 @@ function App() {
     }
   }, [linkedinData]);
 
+  // Restore saved profile URL from localStorage on load
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('profileUrl');
+      if (saved) setProfileUrl(saved);
+    } catch {}
+  }, []);
+
+  // Persist profile URL when changed
+  useEffect(() => {
+    try {
+      if (profileUrl) window.localStorage.setItem('profileUrl', profileUrl);
+    } catch {}
+  }, [profileUrl]);
+
+  const isValidProfileUrl = (url) => {
+    if (!url) return false;
+    try {
+      const u = new URL(url);
+      const hostOk = /(^|\.)linkedin\.com$/.test(u.hostname);
+      const pathOk = /^\/in\//.test(u.pathname);
+      return hostOk && pathOk;
+    } catch {
+      return false;
+    }
+  };
+
   // Helper to update a top-level scalar field
   const updateTopField = (field, value) => {
     setDraftData(prev => prev ? { ...prev, [field]: value } : prev);
@@ -347,7 +375,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/navigate-to-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileUrl: 'https://www.linkedin.com/in/mocialov/' })
+        body: JSON.stringify({ profileUrl: isValidProfileUrl(profileUrl) ? profileUrl : 'https://www.linkedin.com/in/mocialov/' })
       });
 
       const result = await response.json();
@@ -370,7 +398,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/scrape-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileUrl: 'https://www.linkedin.com/in/mocialov/' })
+        body: JSON.stringify({ profileUrl: isValidProfileUrl(profileUrl) ? profileUrl : 'https://www.linkedin.com/in/mocialov/' })
       });
 
       const result = await response.json();
@@ -440,6 +468,19 @@ function App() {
       <h1 className="title">🔗 LinkedIn Profile Extractor</h1>
       <p className="subtitle">Extract ALL your LinkedIn profile data - including all past workplaces</p>
 
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+        <input
+          type="url"
+          value={profileUrl}
+          onChange={(e) => setProfileUrl(e.target.value.trim())}
+          placeholder="https://www.linkedin.com/in/your-handle/"
+          style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+        />
+        <span style={{ fontSize: 12, color: isValidProfileUrl(profileUrl) || !profileUrl ? '#6b7280' : '#ef4444' }}>
+          {profileUrl && !isValidProfileUrl(profileUrl) ? 'Enter a valid LinkedIn profile URL' : 'Profile URL'}
+        </span>
+      </div>
+
       {/* <div className="instructions">
         <h3>📋 Simple 3-Step Process:</h3>
         <ol>
@@ -490,13 +531,13 @@ function App() {
 
         {loggedIn && (
           <>
-            <button onClick={extractData} disabled={loading} className="button" style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}>
+            <button onClick={extractData} disabled={loading || !isValidProfileUrl(profileUrl)} className="button" style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}>
               {loading ? '⏳ Extracting Data... (20-30s)' : '📊 Extract All My Data'}
             </button>
             <button onClick={switchToHeadless} disabled={loading} className="button" style={{ background: '#8b5cf6', fontSize: '14px' }}>
               {loading ? 'Switching...' : '👻 Switch to Headless Mode'}
             </button>
-            <button onClick={navigateToProfile} disabled={loading} className="button" style={{ background: '#6b7280', fontSize: '14px' }}>
+            <button onClick={navigateToProfile} disabled={loading || !isValidProfileUrl(profileUrl)} className="button" style={{ background: '#6b7280', fontSize: '14px' }}>
               {loading ? 'Navigating...' : '🧭 Go to Profile (optional)'}
             </button>
           </>
