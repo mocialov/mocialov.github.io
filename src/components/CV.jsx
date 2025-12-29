@@ -123,6 +123,13 @@ export default function CV({ data }) {
                     ))}
                   </ul>
                 )}
+                {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
+                  <ul className="cv-experience-skills">
+                    {exp.contextual_skills.map((s, k) => (
+                      <li key={k} className="cv-skill">{s}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>

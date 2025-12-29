@@ -110,6 +110,93 @@ function extractExperienceData() {
                 if (longText) description = longText;
             }
 
+            // Contextual skills (if present under sub-components)
+            let contextualSkills = [];
+            try {
+                const skillSpan = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+                    .find(s => /\bSkills:\b/i.test(s.textContent));
+                if (skillSpan) {
+                    const text = skillSpan.textContent.replace(/^[\s\S]*?Skills:\s*/i, '').trim();
+                    const parts = text.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                    const seen = new Set();
+                    contextualSkills = parts.filter(p => {
+                        const key = p.toLowerCase();
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                }
+                // Fallback: parse any row that includes the "Skills:" label (not always under `.pvs-entity__sub-components`)
+                if (!contextualSkills.length) {
+                    const rows = Array.from(item.querySelectorAll('.display-flex.align-items-center.t-14.t-normal.t-black'))
+                        .filter(row => /\bSkills:\b/i.test(row.textContent));
+                    for (const row of rows) {
+                        const strong = row.querySelector('strong');
+                        const container = strong ? strong.parentElement : row;
+                        const raw = (container?.textContent || '').replace(/\s+/g, ' ').trim();
+                        const m = raw.match(/Skills:\s*(.*)$/i);
+                        if (m) {
+                            const stripped = m[1].trim();
+                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                            const seen = new Set();
+                            const tokens = parts.filter(p => {
+                                const key = p.toLowerCase();
+                                if (seen.has(key)) return false;
+                                seen.add(key);
+                                return true;
+                            });
+                            if (tokens.length) {
+                                contextualSkills = tokens;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // Final fallback: any strong element with 'Skills:' inside the item
+                if (!contextualSkills.length) {
+                    const labels = Array.from(item.querySelectorAll('strong'))
+                        .filter(el => /\bSkills:\b/i.test(el.textContent || ''));
+                    for (const strong of labels) {
+                        const raw = (strong.parentElement?.textContent || '').replace(/\s+/g, ' ').trim();
+                        const m = raw.match(/Skills:\s*(.*)$/i);
+                        if (m) {
+                            const stripped = m[1].trim();
+                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                            const seen = new Set();
+                            const tokens = parts.filter(p => {
+                                const key = p.toLowerCase();
+                                if (seen.has(key)) return false;
+                                seen.add(key);
+                                return true;
+                            });
+                            if (tokens.length) {
+                                contextualSkills = tokens;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Text-based fallback: search entire item text for 'Skills:' and parse following tokens
+                if (!contextualSkills.length) {
+                    const text = (item.innerText || item.textContent || '').trim();
+                    const mt = text.match(/Skills:\s*(.+?)(?:\r?\n|$)/i);
+                    if (mt && mt[1]) {
+                        const parts = mt[1].trim().split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                        const seen = new Set();
+                        contextualSkills = parts.filter(p => {
+                            const key = p.toLowerCase();
+                            if (seen.has(key)) return false;
+                            if (/\bSkills:\b/i.test(p) || p.includes(' - ')) return false;
+                            seen.add(key);
+                            return true;
+                        });
+                    }
+                }
+            } catch (e) {
+                // ignore skills extraction errors
+            }
+
             // Filter out viewer data
             const isViewerData =
                 title.startsWith('Someone at') ||
@@ -123,7 +210,8 @@ function extractExperienceData() {
                     company: companyLine,
                     dates,
                     location,
-                    description
+                        description,
+                        contextual_skills: contextualSkills
                 };
                 // Provide raw from/to dates instead of duration
                 if (parsed.startDate) exp.from = parsed.startDate;

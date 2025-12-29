@@ -443,6 +443,22 @@ details summary:hover {
   white-space: pre-wrap;
 }
 
+/* Experience contextual skills */
+.experience-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* CV: experience skills under each item */
+.cv-experience-skills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 /* Education Section */
 .education-list {
   display: flex;

@@ -610,6 +610,13 @@ function App() {
                       {exp.description && (
                         <div className="experience-description">{exp.description}</div>
                       )}
+                      {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
+                        <div className="experience-skills">
+                          {exp.contextual_skills.map((s, idx) => (
+                            <span key={idx} className="skill-badge">{s}</span>
+                          ))}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                         <button
                           onClick={() => excludeItem('experience', exp)}
