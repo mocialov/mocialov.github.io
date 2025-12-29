@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import DOMPurify from 'dompurify';
 import CV from './components/CV.jsx';
+import EditableText from './components/EditableText.jsx';
 import './styles.css';
 
 const API_URL = 'http://localhost:3001';
@@ -14,6 +15,7 @@ function App() {
   const [consoleLogs, setConsoleLogs] = useState([]);
   const [showLogs, setShowLogs] = useState(false);
   const [excludedKeys, setExcludedKeys] = useState([]); // track removed items per section
+  const [draftData, setDraftData] = useState(null); // editable copy
 
   // Sanitize and format summary HTML while allowing basic formatting
   const sanitizeSummaryHtml = (htmlOrText) => {
@@ -177,21 +179,21 @@ function App() {
   const clearExclusions = () => setExcludedKeys([]);
 
   // Apply viewer-data filters and user exclusions
-  const filteredForScreen = linkedinData ? {
-    experience: filterViewerData(linkedinData.experience).filter(exp => !isExcluded('experience', exp)),
-    education: (linkedinData.education || []).filter(edu => !isExcluded('education', edu)),
-    certifications: filterCertificationViewerData(linkedinData.certifications).filter(cert => !isExcluded('certifications', cert)),
-    projects: filterProjectsData(linkedinData.projects).filter(proj => !isExcluded('projects', proj)),
-    volunteer: filterVolunteeringData(linkedinData.volunteer).filter(vol => !isExcluded('volunteer', vol)),
-    publications: filterPublicationsData(linkedinData.publications).filter(pub => !isExcluded('publications', pub)),
-    honors: filterHonorsData(linkedinData.honors).filter(honor => !isExcluded('honors', honor)),
-    languages: filterLanguagesData(linkedinData.languages).filter(lang => !isExcluded('languages', lang)),
-    patents: filterPatentsData(linkedinData.patents).filter(patent => !isExcluded('patents', patent)),
-    skills: (linkedinData.skills || []).filter(skill => !isExcluded('skills', skill))
+  const filteredForScreen = draftData ? {
+    experience: filterViewerData(draftData.experience).filter(exp => !isExcluded('experience', exp)),
+    education: (draftData.education || []).filter(edu => !isExcluded('education', edu)),
+    certifications: filterCertificationViewerData(draftData.certifications).filter(cert => !isExcluded('certifications', cert)),
+    projects: filterProjectsData(draftData.projects).filter(proj => !isExcluded('projects', proj)),
+    volunteer: filterVolunteeringData(draftData.volunteer).filter(vol => !isExcluded('volunteer', vol)),
+    publications: filterPublicationsData(draftData.publications).filter(pub => !isExcluded('publications', pub)),
+    honors: filterHonorsData(draftData.honors).filter(honor => !isExcluded('honors', honor)),
+    languages: filterLanguagesData(draftData.languages).filter(lang => !isExcluded('languages', lang)),
+    patents: filterPatentsData(draftData.patents).filter(patent => !isExcluded('patents', patent)),
+    skills: (draftData.skills || []).filter(skill => !isExcluded('skills', skill))
   } : null;
 
-  const filteredForPrint = linkedinData ? {
-    ...linkedinData,
+  const filteredForPrint = draftData ? {
+    ...draftData,
     experience: filteredForScreen.experience,
     education: filteredForScreen.education,
     certifications: filteredForScreen.certifications,
@@ -203,6 +205,48 @@ function App() {
     patents: filteredForScreen.patents,
     skills: filteredForScreen.skills
   } : null;
+
+  // keep draftData in sync when new linkedinData arrives
+  useEffect(() => {
+    if (linkedinData) {
+      // Create a shallow clone; objects inside remain same references
+      const cloned = {
+        ...linkedinData,
+        experience: Array.isArray(linkedinData.experience) ? [...linkedinData.experience] : [],
+        education: Array.isArray(linkedinData.education) ? [...linkedinData.education] : [],
+        certifications: Array.isArray(linkedinData.certifications) ? [...linkedinData.certifications] : [],
+        projects: Array.isArray(linkedinData.projects) ? [...linkedinData.projects] : [],
+        volunteer: Array.isArray(linkedinData.volunteer) ? [...linkedinData.volunteer] : [],
+        publications: Array.isArray(linkedinData.publications) ? [...linkedinData.publications] : [],
+        honors: Array.isArray(linkedinData.honors) ? [...linkedinData.honors] : [],
+        languages: Array.isArray(linkedinData.languages) ? [...linkedinData.languages] : [],
+        patents: Array.isArray(linkedinData.patents) ? [...linkedinData.patents] : [],
+        skills: Array.isArray(linkedinData.skills) ? [...linkedinData.skills] : []
+      };
+      setDraftData(cloned);
+    } else {
+      setDraftData(null);
+    }
+  }, [linkedinData]);
+
+  // Helper to update a top-level scalar field
+  const updateTopField = (field, value) => {
+    setDraftData(prev => prev ? { ...prev, [field]: value } : prev);
+  };
+
+  // Helper to update an array item by original object reference
+  const updateArrayItem = (section, originalItem, updater) => {
+    setDraftData(prev => {
+      if (!prev || !Array.isArray(prev[section])) return prev;
+      const arr = prev[section];
+      const idx = arr.indexOf(originalItem);
+      if (idx === -1) return prev;
+      const updatedItem = updater({ ...(arr[idx] || {}) });
+      const newArr = [...arr];
+      newArr[idx] = updatedItem;
+      return { ...prev, [section]: newArr };
+    });
+  };
 
   const startBrowser = async () => {
     setLoading(true);
@@ -359,24 +403,26 @@ function App() {
 
   const downloadData = () => {
     // Filter out viewer data before downloading
+    const base = draftData || linkedinData;
+    if (!base) return;
     const filteredData = {
-      ...linkedinData,
-      experience: filterViewerData(linkedinData.experience),
-      projects: filterProjectsData(linkedinData.projects),
-      certifications: filterCertificationViewerData(linkedinData.certifications),
-      volunteer: filterVolunteeringData(linkedinData.volunteer),
-      publications: filterPublicationsData(linkedinData.publications),
-      honors: filterHonorsData(linkedinData.honors),
-      languages: filterLanguagesData(linkedinData.languages),
-      patents: filterPatentsData(linkedinData.patents)
+      ...base,
+      experience: filterViewerData(base.experience),
+      projects: filterProjectsData(base.projects),
+      certifications: filterCertificationViewerData(base.certifications),
+      volunteer: filterVolunteeringData(base.volunteer),
+      publications: filterPublicationsData(base.publications),
+      honors: filterHonorsData(base.honors),
+      languages: filterLanguagesData(base.languages),
+      patents: filterPatentsData(base.patents)
     };
 
-    console.log(`Filtered ${linkedinData.experience.length - filteredData.experience.length} viewer entries from experiences`);
-    console.log(`Filtered ${(linkedinData.projects?.length || 0) - (filteredData.projects?.length || 0)} viewer entries from projects`);
-    console.log(`Filtered ${linkedinData.certifications.length - filteredData.certifications.length} viewer entries from certifications`);
-    console.log(`Filtered ${(linkedinData.volunteer?.length || 0) - (filteredData.volunteer?.length || 0)} viewer entries from volunteering`);
-    console.log(`Filtered ${(linkedinData.publications?.length || 0) - (filteredData.publications?.length || 0)} viewer entries from publications`);
-    console.log(`Filtered ${(linkedinData.honors?.length || 0) - (filteredData.honors?.length || 0)} viewer entries from honors`);
+    console.log(`Filtered ${(base.experience?.length || 0) - (filteredData.experience?.length || 0)} viewer entries from experiences`);
+    console.log(`Filtered ${(base.projects?.length || 0) - (filteredData.projects?.length || 0)} viewer entries from projects`);
+    console.log(`Filtered ${(base.certifications?.length || 0) - (filteredData.certifications?.length || 0)} viewer entries from certifications`);
+    console.log(`Filtered ${(base.volunteer?.length || 0) - (filteredData.volunteer?.length || 0)} viewer entries from volunteering`);
+    console.log(`Filtered ${(base.publications?.length || 0) - (filteredData.publications?.length || 0)} viewer entries from publications`);
+    console.log(`Filtered ${(base.honors?.length || 0) - (filteredData.honors?.length || 0)} viewer entries from honors`);
     console.log(`Final count: ${filteredData.experience.length} experiences, ${filteredData.projects?.length || 0} projects, ${filteredData.volunteer?.length || 0} volunteering, ${filteredData.publications?.length || 0} publications, ${filteredData.honors?.length || 0} honors, ${filteredData.certifications.length} certifications`);
 
     const dataStr = JSON.stringify(filteredData, null, 2);
@@ -520,7 +566,7 @@ function App() {
         </div>
       )}
 
-      {linkedinData && (
+      {draftData && (
         <div className="result">
           <div className="cv-actions">
             <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
@@ -528,6 +574,9 @@ function App() {
             </button>
             <button onClick={downloadData} className="button" style={{ background: '#374151' }}>
               💾 Download JSON
+            </button>
+            <button onClick={() => setDraftData(linkedinData)} className="button" style={{ background: '#0ea5e9' }} title="Restore original scraped data">
+              ↩️ Reset Edits
             </button>
             <button onClick={clearExclusions} className="button" style={{ background: '#ef4444' }} title="Restore all removed items">
               ♻️ Reset Removals
@@ -540,23 +589,46 @@ function App() {
           {/* Visual Profile (Interactive, on-screen) */}
           {/* SECTION 1: HEADER - Contact & Profile Summary */}
           <div className="profile-header">
-            {linkedinData.image && (
-              <img src={linkedinData.image} alt="Profile" className="profile-photo" />
+            {draftData.image && (
+              <img src={draftData.image} alt="Profile" className="profile-photo" />
             )}
             <div className="profile-info">
-              <h1 className="profile-name">{linkedinData.name}</h1>
-              <div className="profile-headline">{linkedinData.headline}</div>
-              <div className="profile-location">📍 {linkedinData.location}</div>
+              <h1 className="profile-name">
+                <EditableText
+                  value={draftData.name || ''}
+                  placeholder="Your Name"
+                  onChange={(v) => updateTopField('name', v)}
+                />
+              </h1>
+              <div className="profile-headline">
+                <EditableText
+                  value={draftData.headline || ''}
+                  placeholder="Headline"
+                  onChange={(v) => updateTopField('headline', v)}
+                />
+              </div>
+              <div className="profile-location">📍
+                <EditableText
+                  className="inline-edit"
+                  value={draftData.location || ''}
+                  placeholder="Location"
+                  onChange={(v) => updateTopField('location', v)}
+                />
+              </div>
             </div>
           </div>
 
           {/* Professional Summary */}
-          {linkedinData.about && (
+          {typeof draftData.about !== 'undefined' && (
             <div className="section">
               <h2 className="section-title">Professional Summary</h2>
-              <div
+              <EditableText
+                tag="div"
                 className="about-text"
-                dangerouslySetInnerHTML={{ __html: sanitizeSummaryHtml(linkedinData.aboutHtml || linkedinData.about) }}
+                allowHtml
+                value={draftData.aboutHtml || draftData.about || ''}
+                placeholder="Add a short professional summary..."
+                onChange={(v) => setDraftData(prev => prev ? { ...prev, aboutHtml: v } : prev)}
               />
             </div>
           )}
@@ -568,7 +640,20 @@ function App() {
               <div className="skills-grid">
                 {filteredForScreen.skills.slice(0, 15).map((skill, i) => (
                   <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
-                    {skill}
+                    <EditableText
+                      value={skill}
+                      onChange={(v) => {
+                        // find original index in draftData.skills and update
+                        const idx = draftData.skills.indexOf(skill);
+                        if (idx > -1) {
+                          setDraftData(prev => {
+                            const next = { ...prev, skills: [...(prev.skills || [])] };
+                            next.skills[idx] = v;
+                            return next;
+                          });
+                        }
+                      }}
+                    />
                     <button
                       onClick={() => excludeItem('skills', skill)}
                       title="Remove skill"
@@ -585,7 +670,19 @@ function App() {
                   <div className="skills-grid" style={{ marginTop: 12 }}>
                     {filteredForScreen.skills.slice(15).map((skill, i) => (
                       <span key={i} className="skill-badge" style={{ position: 'relative' }}>
-                        {skill}
+                        <EditableText
+                          value={skill}
+                          onChange={(v) => {
+                            const idx = draftData.skills.indexOf(skill);
+                            if (idx > -1) {
+                              setDraftData(prev => {
+                                const next = { ...prev, skills: [...(prev.skills || [])] };
+                                next.skills[idx] = v;
+                                return next;
+                              });
+                            }
+                          }}
+                        />
                         <button
                           onClick={() => excludeItem('skills', skill)}
                           title="Remove skill"
@@ -611,22 +708,72 @@ function App() {
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
-                      <h3 className="experience-title">{exp.title}</h3>
-                      <div className="experience-company">{exp.company}</div>
+                      <h3 className="experience-title">
+                        <EditableText
+                          value={exp.title || ''}
+                          placeholder="Title"
+                          onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, title: v }))}
+                        />
+                      </h3>
+                      <div className="experience-company">
+                        <EditableText
+                          value={exp.company || ''}
+                          placeholder="Company"
+                          onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, company: v }))}
+                        />
+                      </div>
                       <div className="experience-meta">
                         {(() => {
-                          const dateDisplay =
-                            (exp.from || exp.to)
-                              ? `${exp.from || ''}${exp.to ? ` – ${exp.to}` : ''}`
-                              : (exp.dates || exp.duration || '');
-                          return dateDisplay ? (
-                            <span className="experience-duration">{dateDisplay}</span>
+                          if (exp.from || exp.to) {
+                            return (
+                              <span className="experience-duration">
+                                <EditableText
+                                  className="inline-edit"
+                                  value={exp.from || ''}
+                                  placeholder="From"
+                                  onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, from: v }))}
+                                />
+                                {' – '}
+                                <EditableText
+                                  className="inline-edit"
+                                  value={exp.to || ''}
+                                  placeholder="To"
+                                  onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, to: v }))}
+                                />
+                              </span>
+                            );
+                          }
+                          const display = exp.dates || exp.duration || '';
+                          return display ? (
+                            <span className="experience-duration">
+                              <EditableText
+                                value={display}
+                                placeholder="Dates"
+                                onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, dates: v }))}
+                              />
+                            </span>
                           ) : null;
                         })()}
-                        {exp.location && <span className="experience-location">• {exp.location}</span>}
+                        {typeof exp.location !== 'undefined' && (
+                          <span className="experience-location">•
+                            <EditableText
+                              className="inline-edit"
+                              value={exp.location || ''}
+                              placeholder="Location"
+                              onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, location: v }))}
+                            />
+                          </span>
+                        )}
                       </div>
-                      {exp.description && (
-                        <div className="experience-description">{exp.description}</div>
+                      {typeof exp.description !== 'undefined' && (
+                        <div className="experience-description">
+                          <EditableText
+                            tag="div"
+                            value={exp.description || ''}
+                            placeholder="What did you do?"
+                            onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, description: v }))}
+                          />
+                        </div>
                       )}
                       {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
                         <div className="experience-skills">
@@ -657,11 +804,38 @@ function App() {
               <div className="education-list">
                 {filteredForScreen.education.map((edu, i) => (
                   <div key={i} className="education-item">
-                    <h3 className="education-school">{edu.school}</h3>
+                    <h3 className="education-school">
+                      <EditableText
+                        value={edu.school || ''}
+                        placeholder="School"
+                        onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, school: v }))}
+                      />
+                    </h3>
                     <div className="education-degree">
-                      {edu.degree} {edu.field && `• ${edu.field}`}
+                      <EditableText
+                        value={edu.degree || ''}
+                        placeholder="Degree"
+                        onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, degree: v }))}
+                      />
+                      {" "}
+                      {typeof edu.field !== 'undefined' && (
+                        <>
+                          {"• "}
+                          <EditableText
+                            value={edu.field || ''}
+                            placeholder="Field"
+                            onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, field: v }))}
+                          />
+                        </>
+                      )}
                     </div>
-                    <div className="education-duration">{edu.duration}</div>
+                    <div className="education-duration">
+                      <EditableText
+                        value={edu.duration || ''}
+                        placeholder="Duration"
+                        onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, duration: v }))}
+                      />
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                       <button
                         onClick={() => excludeItem('education', edu)}
@@ -683,9 +857,27 @@ function App() {
               <div className="certifications-grid">
                 {filteredForScreen.certifications.map((cert, i) => (
                   <div key={i} className="certification-item">
-                    <div className="certification-name">{cert.name}</div>
-                    <div className="certification-issuer">{cert.issuer}</div>
-                    <div className="certification-date">{cert.date}</div>
+                    <div className="certification-name">
+                      <EditableText
+                        value={cert.name || ''}
+                        placeholder="Certification"
+                        onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, name: v }))}
+                      />
+                    </div>
+                    <div className="certification-issuer">
+                      <EditableText
+                        value={cert.issuer || ''}
+                        placeholder="Issuer"
+                        onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, issuer: v }))}
+                      />
+                    </div>
+                    <div className="certification-date">
+                      <EditableText
+                        value={cert.date || ''}
+                        placeholder="Date"
+                        onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, date: v }))}
+                      />
+                    </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                       <button
                         onClick={() => excludeItem('certifications', cert)}
@@ -710,17 +902,35 @@ function App() {
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
                       <h3 className="experience-title">
-                        {proj.url ? (
-                          <a href={proj.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                            {proj.title} 🔗
-                          </a>
-                        ) : proj.title}
+                        <EditableText
+                          value={proj.title || ''}
+                          placeholder="Project Title"
+                          onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, title: v }))}
+                        />
+                        {proj.url && (
+                          <span style={{ marginLeft: 6 }}>
+                            <a href={proj.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
+                          </span>
+                        )}
                       </h3>
                       <div className="experience-meta">
-                        <span className="experience-duration">{proj.date}</span>
+                        <span className="experience-duration">
+                          <EditableText
+                            value={proj.date || ''}
+                            placeholder="Date"
+                            onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, date: v }))}
+                          />
+                        </span>
                       </div>
-                      {proj.description && (
-                        <div className="experience-description">{proj.description}</div>
+                      {typeof proj.description !== 'undefined' && (
+                        <div className="experience-description">
+                          <EditableText
+                            tag="div"
+                            value={proj.description || ''}
+                            placeholder="Project details..."
+                            onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, description: v }))}
+                          />
+                        </div>
                       )}
                       {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
                         <div className="experience-skills">
@@ -753,14 +963,59 @@ function App() {
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
-                      <h3 className="experience-title">{vol.role}</h3>
-                      <div className="experience-company">{vol.organization}</div>
-                      <div className="experience-meta">
-                        <span className="experience-duration">{vol.date} {vol.duration && `• ${vol.duration}`}</span>
-                        {vol.cause && <span className="experience-location">• {vol.cause}</span>}
+                      <h3 className="experience-title">
+                        <EditableText
+                          value={vol.role || ''}
+                          placeholder="Role"
+                          onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, role: v }))}
+                        />
+                      </h3>
+                      <div className="experience-company">
+                        <EditableText
+                          value={vol.organization || ''}
+                          placeholder="Organization"
+                          onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, organization: v }))}
+                        />
                       </div>
-                      {vol.description && (
-                        <div className="experience-description">{vol.description}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">
+                          <EditableText
+                            value={vol.date || ''}
+                            placeholder="Date"
+                            onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, date: v }))}
+                          />
+                          {" "}
+                          {typeof vol.duration !== 'undefined' && (
+                            <>
+                              {"• "}
+                              <EditableText
+                                value={vol.duration || ''}
+                                placeholder="Duration"
+                                onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, duration: v }))}
+                              />
+                            </>
+                          )}
+                        </span>
+                        {typeof vol.cause !== 'undefined' && (
+                          <span className="experience-location">•
+                            <EditableText
+                              className="inline-edit"
+                              value={vol.cause || ''}
+                              placeholder="Cause"
+                              onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, cause: v }))}
+                            />
+                          </span>
+                        )}
+                      </div>
+                      {typeof vol.description !== 'undefined' && (
+                        <div className="experience-description">
+                          <EditableText
+                            tag="div"
+                            value={vol.description || ''}
+                            placeholder="What did you do?"
+                            onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, description: v }))}
+                          />
+                        </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                         <button
@@ -787,18 +1042,42 @@ function App() {
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
                       <h3 className="experience-title">
-                        {pub.url ? (
-                          <a href={pub.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                            {pub.title} 🔗
-                          </a>
-                        ) : pub.title}
+                        <EditableText
+                          value={pub.title || ''}
+                          placeholder="Title"
+                          onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, title: v }))}
+                        />
+                        {pub.url && (
+                          <span style={{ marginLeft: 6 }}>
+                            <a href={pub.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
+                          </span>
+                        )}
                       </h3>
-                      <div className="experience-company">{pub.publisher}</div>
-                      <div className="experience-meta">
-                        <span className="experience-duration">{pub.date}</span>
+                      <div className="experience-company">
+                        <EditableText
+                          value={pub.publisher || ''}
+                          placeholder="Publisher"
+                          onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, publisher: v }))}
+                        />
                       </div>
-                      {pub.description && (
-                        <div className="experience-description">{pub.description}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">
+                          <EditableText
+                            value={pub.date || ''}
+                            placeholder="Date"
+                            onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, date: v }))}
+                          />
+                        </span>
+                      </div>
+                      {typeof pub.description !== 'undefined' && (
+                        <div className="experience-description">
+                          <EditableText
+                            tag="div"
+                            value={pub.description || ''}
+                            placeholder="Summary..."
+                            onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, description: v }))}
+                          />
+                        </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                         <button
@@ -824,13 +1103,38 @@ function App() {
                   <div key={i} className="experience-item">
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
-                      <h3 className="experience-title">{honor.title}</h3>
-                      <div className="experience-company">{honor.issuer}</div>
-                      <div className="experience-meta">
-                        <span className="experience-duration">{honor.date}</span>
+                      <h3 className="experience-title">
+                        <EditableText
+                          value={honor.title || ''}
+                          placeholder="Award Title"
+                          onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, title: v }))}
+                        />
+                      </h3>
+                      <div className="experience-company">
+                        <EditableText
+                          value={honor.issuer || ''}
+                          placeholder="Issuer"
+                          onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, issuer: v }))}
+                        />
                       </div>
-                      {honor.description && (
-                        <div className="experience-description">{honor.description}</div>
+                      <div className="experience-meta">
+                        <span className="experience-duration">
+                          <EditableText
+                            value={honor.date || ''}
+                            placeholder="Date"
+                            onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, date: v }))}
+                          />
+                        </span>
+                      </div>
+                      {typeof honor.description !== 'undefined' && (
+                        <div className="experience-description">
+                          <EditableText
+                            tag="div"
+                            value={honor.description || ''}
+                            placeholder="Details..."
+                            onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, description: v }))}
+                          />
+                        </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                         <button
@@ -854,7 +1158,19 @@ function App() {
               <div className="skills-grid">
                 {filteredForScreen.languages.map((language, i) => (
                   <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
-                    {language}
+                    <EditableText
+                      value={language}
+                      onChange={(v) => {
+                        const idx = draftData.languages.indexOf(language);
+                        if (idx > -1) {
+                          setDraftData(prev => {
+                            const next = { ...prev, languages: [...(prev.languages || [])] };
+                            next.languages[idx] = v;
+                            return next;
+                          });
+                        }
+                      }}
+                    />
                     <button
                       onClick={() => excludeItem('languages', language)}
                       title="Remove language"
@@ -876,21 +1192,57 @@ function App() {
                     <div className="timeline-marker"></div>
                     <div className="experience-content">
                       <h3 className="experience-title">
-                        {patent.url ? (
-                          <a href={patent.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>
-                            {patent.title} 🔗
-                          </a>
-                        ) : patent.title}
+                        <EditableText
+                          value={patent.title || ''}
+                          placeholder="Patent Title"
+                          onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, title: v }))}
+                        />
+                        {patent.url && (
+                          <span style={{ marginLeft: 6 }}>
+                            <a href={patent.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
+                          </span>
+                        )}
                       </h3>
                       {patent.number && (
-                        <div className="experience-company">Patent Number: {patent.number}</div>
+                        <div className="experience-company">Patent Number: {" "}
+                          <EditableText
+                            className="inline-edit"
+                            value={patent.number || ''}
+                            placeholder="Number"
+                            onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, number: v }))}
+                          />
+                        </div>
                       )}
                       <div className="experience-meta">
-                        {patent.issuer && <span className="experience-company">{patent.issuer}</span>}
-                        {patent.date && <span className="experience-duration">• {patent.date}</span>}
+                        {typeof patent.issuer !== 'undefined' && (
+                          <span className="experience-company">
+                            <EditableText
+                              value={patent.issuer || ''}
+                              placeholder="Issuer"
+                              onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, issuer: v }))}
+                            />
+                          </span>
+                        )}
+                        {typeof patent.date !== 'undefined' && (
+                          <span className="experience-duration">•
+                            <EditableText
+                              className="inline-edit"
+                              value={patent.date || ''}
+                              placeholder="Date"
+                              onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, date: v }))}
+                            />
+                          </span>
+                        )}
                       </div>
-                      {patent.description && (
-                        <div className="experience-description">{patent.description}</div>
+                      {typeof patent.description !== 'undefined' && (
+                        <div className="experience-description">
+                          <EditableText
+                            tag="div"
+                            value={patent.description || ''}
+                            placeholder="Details..."
+                            onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, description: v }))}
+                          />
+                        </div>
                       )}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                         <button

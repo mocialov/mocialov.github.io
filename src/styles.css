@@ -443,6 +443,16 @@ details summary:hover {
   white-space: pre-wrap;
 }
 
+/* Inline contentEditable helpers */
+.inline-edit {
+  display: inline-block;
+  min-width: 1ch;
+}
+[contenteditable][data-placeholder]:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+}
+
 /* Experience contextual skills */
 .experience-skills {
   display: flex;
