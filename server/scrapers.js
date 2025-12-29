@@ -644,6 +644,7 @@ function extractProfileData() {
         location: '',
         image: '',
         about: '',
+        aboutHtml: '',
         experience: [],
         education: [],
         skills: [],
@@ -713,7 +714,37 @@ function extractProfileData() {
         if (aboutContainer) {
             const aboutText = aboutContainer.querySelector('.inline-show-more-text, .pv-shared-text-with-see-more, .display-flex.full-width');
             if (aboutText) {
-                extractedData.about = aboutText.textContent.trim().replace(/\s+/g, ' ');
+                try {
+                    const clone = aboutText.cloneNode(true);
+                    // Remove any See more/Show more controls that might be inside
+                    Array.from(clone.querySelectorAll('button, a')).forEach(el => {
+                        const t = (el.textContent || '').trim().toLowerCase();
+                        if (/(see|show) more/.test(t)) {
+                            el.remove();
+                        }
+                    });
+                    // Prefer innerHTML to preserve formatting (e.g., <br>, <strong>)
+                    let html = clone.innerHTML || '';
+                    // Normalize excessive breaks/spaces
+                    html = html
+                        .replace(/\u00A0/g, ' ')
+                        .replace(/(\s*<br\s*\/?>(\s|\u00A0)*){3,}/gi, '<br><br>')
+                        .trim();
+                    extractedData.aboutHtml = html;
+
+                    // Also provide a text fallback that preserves newlines
+                    let text = clone.textContent || '';
+                    text = text
+                        .replace(/\r\n/g, '\n')
+                        .replace(/\n{3,}/g, '\n\n')
+                        .replace(/[ \t\f\v]+\n/g, '\n')
+                        .replace(/\n[ \t\f\v]+/g, '\n')
+                        .trim();
+                    extractedData.about = text;
+                } catch (e) {
+                    // Fallback to plain text if anything goes wrong
+                    extractedData.about = aboutText.textContent.trim();
+                }
             }
         }
     }

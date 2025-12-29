@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DOMPurify from 'dompurify';
 import CV from './components/CV.jsx';
 import './styles.css';
 
@@ -13,6 +14,21 @@ function App() {
   const [consoleLogs, setConsoleLogs] = useState([]);
   const [showLogs, setShowLogs] = useState(false);
   const [excludedKeys, setExcludedKeys] = useState([]); // track removed items per section
+
+  // Sanitize and format summary HTML while allowing basic formatting
+  const sanitizeSummaryHtml = (htmlOrText) => {
+    if (!htmlOrText) return '';
+    const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(htmlOrText) || htmlOrText.includes('<br');
+    const raw = looksLikeHtml ? htmlOrText : String(htmlOrText).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+    return DOMPurify.sanitize(raw, {
+      ALLOWED_TAGS: [
+        'b','strong','i','em','u','br','p','ul','ol','li','a',
+        'h1','h2','h3','h4','h5','h6','span','div','pre','code','blockquote','hr','sup','sub'
+      ],
+      ALLOWED_ATTR: ['href','target','rel'],
+      ADD_ATTR: ['target','rel']
+    });
+  };
 
   // Filter out "Who viewed me" / "Who your viewers also viewed" data
   const filterViewerData = (experiences) => {
@@ -538,7 +554,10 @@ function App() {
           {linkedinData.about && (
             <div className="section">
               <h2 className="section-title">Professional Summary</h2>
-              <p className="about-text">{linkedinData.about}</p>
+              <div
+                className="about-text"
+                dangerouslySetInnerHTML={{ __html: sanitizeSummaryHtml(linkedinData.aboutHtml || linkedinData.about) }}
+              />
             </div>
           )}
 

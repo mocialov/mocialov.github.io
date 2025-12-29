@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 
 const LinkedInURL = 'https://www.linkedin.com/in/mocialov/';
 
@@ -56,6 +57,20 @@ export default function CV({ data }) {
   const filteredEducation = data.education || [];
   const topSkills = (data.skills || []).slice(0, 12);
 
+  const sanitizeSummaryHtml = (htmlOrText) => {
+    if (!htmlOrText) return '';
+    const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(htmlOrText) || htmlOrText.includes('<br');
+    const raw = looksLikeHtml ? htmlOrText : String(htmlOrText).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+    return DOMPurify.sanitize(raw, {
+      ALLOWED_TAGS: [
+        'b','strong','i','em','u','br','p','ul','ol','li','a',
+        'h1','h2','h3','h4','h5','h6','span','div','pre','code','blockquote','hr','sup','sub'
+      ],
+      ALLOWED_ATTR: ['href','target','rel'],
+      ADD_ATTR: ['target','rel']
+    });
+  };
+
   const locationTokens = (loc) => {
     if (!loc) return { city: null, country: null };
     const tokens = loc.split(',').map(s => s.trim()).filter(Boolean);
@@ -87,7 +102,10 @@ export default function CV({ data }) {
       {data.about && (
         <section className="cv-section">
           <h2 className="cv-section__title">Summary</h2>
-          <p className="cv-summary">{data.about}</p>
+          <div
+            className="cv-summary"
+            dangerouslySetInnerHTML={{ __html: sanitizeSummaryHtml(data.aboutHtml || data.about) }}
+          />
         </section>
       )}
 
