@@ -3,6 +3,7 @@ import DOMPurify from 'dompurify';
 import CV from './components/CV.jsx';
 import EditableText from './components/EditableText.jsx';
 import './styles.css';
+import { DEBUG } from './config.js';
 
 const API_URL = 'http://localhost:3001';
 
@@ -418,6 +419,58 @@ function App() {
     setLoading(false);
   };
 
+  // Default streamlined sequence (used when DEBUG === false)
+  const runDefaultSequence = async () => {
+    if (!isValidProfileUrl(profileUrl)) {
+      setStatus('❌ Please enter a valid LinkedIn profile URL (e.g., https://www.linkedin.com/in/your-handle/)');
+      return;
+    }
+
+    setLoading(true);
+    setStatus('🚀 Starting headless scrape sequence...');
+    try {
+      // 1) Start browser in headless mode (reuse saved session if present)
+      const startRes = await fetch(`${API_URL}/api/start-browser`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ headless: true })
+      });
+      const startData = await startRes.json();
+      if (!startData.success) throw new Error(startData.error || 'Failed to start headless browser');
+      setStatus('👻 Headless browser started. Scraping...');
+
+      // 2) Scrape profile directly (navigation happens inside endpoint)
+      const scrapeRes = await fetch(`${API_URL}/api/scrape-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileUrl })
+      });
+
+      // Handle unauthorized (not logged in) explicitly
+      if (scrapeRes.status === 401) {
+        const err = await scrapeRes.json().catch(() => ({ error: 'Not logged in' }));
+        throw new Error(err.error || 'Not logged in. Please login once in visible mode to save the session.');
+      }
+
+      const result = await scrapeRes.json();
+      if (!result.success) throw new Error(result.error || 'Scrape failed');
+
+      setLinkedinData(result.data);
+      setStatus('✅ Data extracted successfully in headless mode!');
+
+    } catch (error) {
+      setStatus(`❌ Default sequence failed: ${error.message}`);
+    } finally {
+      // 3) Close browser to keep things tidy
+      try {
+        await fetch(`${API_URL}/api/close-browser`, { method: 'POST' });
+      } catch {}
+      setBrowserOpen(false);
+      setLoggedIn(false);
+      setLoading(false);
+    }
+  };
+
   const closeBrowser = async () => {
     try {
       await fetch(`${API_URL}/api/close-browser`, { method: 'POST' });
@@ -506,46 +559,60 @@ function App() {
       </div> */}
 
       <div className="button-group">
-        {!browserOpen && (
+        {DEBUG ? (
           <>
-            <button onClick={startBrowser} disabled={loading} className="button">
-              {loading ? 'Starting...' : '🚀 Start Browser & Login'}
-            </button>
-            <button
-              onClick={startBrowserHeadless}
-              disabled={loading}
-              className="button"
-              style={{ background: '#8b5cf6' }}
-              title="Use this if you're already logged in - runs in background"
-            >
-              {loading ? 'Starting...' : '👻 Start Headless (Already Logged In)'}
-            </button>
+            {!browserOpen && (
+              <>
+                <button onClick={startBrowser} disabled={loading} className="button">
+                  {loading ? 'Starting...' : '🚀 Start Browser & Login'}
+                </button>
+                <button
+                  onClick={startBrowserHeadless}
+                  disabled={loading}
+                  className="button"
+                  style={{ background: '#8b5cf6' }}
+                  title="Use this if you're already logged in - runs in background"
+                >
+                  {loading ? 'Starting...' : '👻 Start Headless (Already Logged In)'}
+                </button>
+              </>
+            )}
+
+            {browserOpen && !loggedIn && (
+              <button onClick={checkLoginStatus} disabled={loading} className="button">
+                {loading ? 'Checking...' : '🔍 Check If Logged In'}
+              </button>
+            )}
+
+            {loggedIn && (
+              <>
+                <button onClick={extractData} disabled={loading || !isValidProfileUrl(profileUrl)} className="button" style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}>
+                  {loading ? '⏳ Extracting Data... (20-30s)' : '📊 Extract All My Data'}
+                </button>
+                <button onClick={switchToHeadless} disabled={loading} className="button" style={{ background: '#8b5cf6', fontSize: '14px' }}>
+                  {loading ? 'Switching...' : '👻 Switch to Headless Mode'}
+                </button>
+                <button onClick={navigateToProfile} disabled={loading || !isValidProfileUrl(profileUrl)} className="button" style={{ background: '#6b7280', fontSize: '14px' }}>
+                  {loading ? 'Navigating...' : '🧭 Go to Profile (optional)'}
+                </button>
+              </>
+            )}
+
+            {browserOpen && (
+              <button onClick={closeBrowser} className="button" style={{ background: '#ef4444' }}>
+                ❌ Close Browser
+              </button>
+            )}
           </>
-        )}
-
-        {browserOpen && !loggedIn && (
-          <button onClick={checkLoginStatus} disabled={loading} className="button">
-            {loading ? 'Checking...' : '🔍 Check If Logged In'}
-          </button>
-        )}
-
-        {loggedIn && (
-          <>
-            <button onClick={extractData} disabled={loading || !isValidProfileUrl(profileUrl)} className="button" style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}>
-              {loading ? '⏳ Extracting Data... (20-30s)' : '📊 Extract All My Data'}
-            </button>
-            <button onClick={switchToHeadless} disabled={loading} className="button" style={{ background: '#8b5cf6', fontSize: '14px' }}>
-              {loading ? 'Switching...' : '👻 Switch to Headless Mode'}
-            </button>
-            <button onClick={navigateToProfile} disabled={loading || !isValidProfileUrl(profileUrl)} className="button" style={{ background: '#6b7280', fontSize: '14px' }}>
-              {loading ? 'Navigating...' : '🧭 Go to Profile (optional)'}
-            </button>
-          </>
-        )}
-
-        {browserOpen && (
-          <button onClick={closeBrowser} className="button" style={{ background: '#ef4444' }}>
-            ❌ Close Browser
+        ) : (
+          <button
+            onClick={runDefaultSequence}
+            disabled={loading || !isValidProfileUrl(profileUrl)}
+            className="button"
+            style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}
+            title="Runs headless scrape sequence using the provided LinkedIn URL"
+          >
+            {loading ? '⏳ Running Headless Scrape...' : '📊 Scrape Profile (Headless)'}
           </button>
         )}
       </div>
@@ -556,7 +623,7 @@ function App() {
         </div>
       )}
 
-      {browserOpen && (
+      {DEBUG && browserOpen && (
         <div className="logs-panel" style={{ marginTop: 20 }}>
           <button
             onClick={toggleLogs}

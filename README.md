@@ -21,6 +21,12 @@ Then:
 
 See [APP_QUICK_START.md](APP_QUICK_START.md) for detailed guide.
 
+### Debug Mode vs Default Sequence
+
+- Config file: `src/config.js`
+- `DEBUG=false` (default): UI shows a single button that runs a streamlined headless scrape sequence using the LinkedIn URL you provide.
+- `DEBUG=true`: UI exposes all manual controls (start browser, headless switch, navigate to profile, extract data, close browser, console logs).
+
 ---
 
 ## 🚨 Alternative Extraction Methods
