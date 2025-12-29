@@ -110,6 +110,12 @@ function extractExperienceData() {
                 if (longText) description = longText;
             }
 
+            // Ensure description does not include a trailing Skills: label (skills are extracted separately)
+            if (description && /Skills:/i.test(description)) {
+                const cut = description.search(/Skills:/i);
+                if (cut !== -1) description = description.slice(0, cut).trim();
+            }
+
             // Contextual skills (if present under sub-components)
             let contextualSkills = [];
             try {
@@ -782,7 +788,12 @@ function extractProfileData() {
 
                                 const descElem = role.querySelector('.inline-show-more-text, .pvs-list__outer-container');
                                 if (descElem) {
-                                    experience.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+                                    let d = descElem.textContent.trim().replace(/\s+/g, ' ');
+                                    if (/Skills:/i.test(d)) {
+                                        const cut = d.search(/Skills:/i);
+                                        if (cut !== -1) d = d.slice(0, cut).trim();
+                                    }
+                                    experience.description = d;
                                 }
 
                                 if (experience.title) {
@@ -824,7 +835,12 @@ function extractProfileData() {
 
                         const descElem = item.querySelector('.inline-show-more-text, .t-14.t-normal.t-black, .pvs-list__outer-container');
                         if (descElem) {
-                            experience.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+                            let d = descElem.textContent.trim().replace(/\s+/g, ' ');
+                            if (/Skills:/i.test(d)) {
+                                const cut = d.search(/Skills:/i);
+                                if (cut !== -1) d = d.slice(0, cut).trim();
+                            }
+                            experience.description = d;
                         }
 
                         if (experience.title || experience.company) {
