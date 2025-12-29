@@ -23,8 +23,8 @@ function App() {
         exp.company?.startsWith('Someone at') ||
         exp.title?.includes('…') ||
         exp.title?.includes('...') ||
-        (exp.title?.match(/\bat\b/i) && !exp.company && !exp.dates && !exp.duration) ||
-        ((!exp.dates && !exp.duration) && !exp.company && exp.title);
+        (exp.title?.match(/\bat\b/i) && !exp.company && !exp.dates && !exp.from && !exp.to) ||
+        ((!exp.dates && !exp.from && !exp.to) && !exp.company && exp.title);
       return !isViewerData;
     });
   };
@@ -122,7 +122,7 @@ function App() {
     try {
       switch (section) {
         case 'experience':
-          return `${section}|${item.title || ''}|${item.company || ''}|${item.duration || ''}|${item.location || ''}`;
+          return `${section}|${item.title || ''}|${item.company || ''}|${item.dates || `${item.from || ''}-${item.to || ''}`}|${item.location || ''}`;
         case 'education':
           return `${section}|${item.school || ''}|${item.degree || ''}|${item.field || ''}|${item.duration || ''}`;
         case 'certifications':
@@ -596,7 +596,15 @@ function App() {
                       <h3 className="experience-title">{exp.title}</h3>
                       <div className="experience-company">{exp.company}</div>
                       <div className="experience-meta">
-                        <span className="experience-duration">{exp.duration}</span>
+                        {(() => {
+                          const dateDisplay =
+                            (exp.from || exp.to)
+                              ? `${exp.from || ''}${exp.to ? ` – ${exp.to}` : ''}`
+                              : (exp.dates || exp.duration || '');
+                          return dateDisplay ? (
+                            <span className="experience-duration">{dateDisplay}</span>
+                          ) : null;
+                        })()}
                         {exp.location && <span className="experience-location">• {exp.location}</span>}
                       </div>
                       {exp.description && (

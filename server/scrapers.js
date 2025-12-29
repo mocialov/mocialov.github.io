@@ -23,9 +23,66 @@ function extractExperienceData() {
             // First span is usually title, second is company with employment type
             const title = allSpans[0] || '';
             const companyLine = allSpans[1] || '';
+            // Find dates (contains year or "Present") with robust parsing
+            // Prefer a line that contains a range and possibly duration ("· 2 yrs 3 mos")
+            const dateCandidates = [];
+            const rawMeta = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]')?.textContent?.trim();
+            if (rawMeta) dateCandidates.push(rawMeta);
+            // Add all spans that look like they contain dates
+            allSpans.forEach(s => {
+                if (/\d{4}/.test(s) || /present/i.test(s)) {
+                    dateCandidates.push(s);
+                }
+            });
 
-            // Find dates (contains year or "Present")
-            const dates = allSpans.find(s => /\d{4}|Present/i.test(s) && !s.includes('Issued')) || '';
+            // De-duplicate while preserving order
+            const seen = new Set();
+            const uniqueCandidates = dateCandidates.filter(s => {
+                if (seen.has(s)) return false;
+                seen.add(s);
+                return true;
+            });
+
+            // Helper: normalize a candidate into a clean date range and optional parts
+            function parseDateRange(text) {
+                if (!text) return { range: '', startDate: '', endDate: '', duration: '' };
+                // Remove excessive whitespace
+                let t = text.replace(/\s+/g, ' ').trim();
+                // Split off duration if present (e.g., " · 2 yrs 3 mos")
+                let duration = '';
+                if (t.includes(' · ')) {
+                    const parts = t.split(' · ');
+                    t = parts[0].trim();
+                    duration = parts.slice(1).join(' · ').trim();
+                }
+                // Accept only strings that look like a range or a single year/month-year
+                const hasYear = /\b\d{4}\b/.test(t);
+                if (!hasYear && !/present/i.test(t)) return { range: '', startDate: '', endDate: '', duration: '' };
+                // Split on common dash characters
+                const splitter = /\s[-–—]\s/; // space dash space
+                let startDate = '', endDate = '';
+                if (splitter.test(t)) {
+                    const [start, end] = t.split(splitter);
+                    startDate = (start || '').trim();
+                    endDate = (end || '').trim();
+                } else {
+                    // No explicit range, treat as single date
+                    startDate = t;
+                }
+                const range = endDate ? `${startDate} - ${endDate}` : startDate;
+                return { range, startDate, endDate, duration };
+            }
+
+            let parsed = { range: '', startDate: '', endDate: '', duration: '' };
+            for (const cand of uniqueCandidates) {
+                const p = parseDateRange(cand);
+                // Heuristic: prefer candidates that yield a non-empty range and have a year
+                if (p.range && (/\d{4}/.test(p.range) || /present/i.test(p.range))) {
+                    parsed = p;
+                    break;
+                }
+            }
+            const dates = parsed.range || '';
 
             // Find location (has comma, no years, not too long)
             const location = allSpans.find(s =>
@@ -61,13 +118,17 @@ function extractExperienceData() {
                 (!dates && !companyLine);
 
             if (!isViewerData && title) {
-                experiences.push({
+                const exp = {
                     title,
                     company: companyLine,
                     dates,
                     location,
                     description
-                });
+                };
+                // Provide raw from/to dates instead of duration
+                if (parsed.startDate) exp.from = parsed.startDate;
+                if (parsed.endDate) exp.to = parsed.endDate;
+                experiences.push(exp);
             }
         } catch (e) {
             console.error('Error extracting experience item:', e);

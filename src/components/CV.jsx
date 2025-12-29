@@ -18,8 +18,8 @@ export default function CV({ data }) {
       exp.company?.startsWith('Someone at') ||
       exp.title?.includes('…') ||
       exp.title?.includes('...') ||
-      (exp.title?.match(/\bat\b/i) && !exp.company && !exp.dates && !exp.duration) ||
-      ((!exp.dates && !exp.duration) && !exp.company && exp.title);
+      (exp.title?.match(/\bat\b/i) && !exp.company && !exp.dates && !exp.from && !exp.to) ||
+      ((!exp.dates && !exp.from && !exp.to) && !exp.company && exp.title);
     return !isViewerData;
   });
 
@@ -104,7 +104,15 @@ export default function CV({ data }) {
                   <div className="cv-item__role">{exp.title}</div>
                   <div className="cv-item__meta">
                     <span className="cv-item__company">{exp.company}</span>
-                    {exp.duration && <span className="cv-item__date">{exp.duration}</span>}
+                    {(() => {
+                      const dateDisplay =
+                        (exp.from || exp.to)
+                          ? `${exp.from || ''}${exp.to ? ` – ${exp.to}` : ''}`
+                          : (exp.dates || exp.duration || '');
+                      return dateDisplay ? (
+                        <span className="cv-item__date">{dateDisplay}</span>
+                      ) : null;
+                    })()}
                     {exp.location && <span className="cv-item__loc">{exp.location}</span>}
                   </div>
                 </div>
