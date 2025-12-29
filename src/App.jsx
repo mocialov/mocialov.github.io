@@ -704,6 +704,13 @@ function App() {
                       {proj.description && (
                         <div className="experience-description">{proj.description}</div>
                       )}
+                      {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
+                        <div className="experience-skills">
+                          {proj.contextual_skills.map((s, idx) => (
+                            <span key={idx} className="skill-badge">{s}</span>
+                          ))}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                         <button
                           onClick={() => excludeItem('projects', proj)}

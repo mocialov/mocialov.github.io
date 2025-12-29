@@ -238,21 +238,76 @@ function extractEducationData() {
 
     items.forEach((item) => {
         try {
-            const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]');
-            const degreeElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]');
+            // Prefer bold school name
+            const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
+            // Prefer non "t-black--light" for degree (to avoid picking the date row)
+            const degreeElem = item.querySelector('.t-14.t-normal:not(.t-black--light) span[aria-hidden="true"]');
             const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
 
             const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
+                .map(s => (s.textContent || '').trim())
                 .filter(t => t && t.length > 0);
+
+            // Helper: parse date range like "2015 - 2020" or "Sep 2015 - Jun 2020 · 4 yrs"
+            function parseDateRange(text) {
+                if (!text) return { range: '', startDate: '', endDate: '' };
+                let t = text.replace(/\s+/g, ' ').trim();
+                // Drop trailing duration if present
+                if (t.includes(' · ')) t = t.split(' · ')[0].trim();
+                // If it doesn't look like a date, bail
+                if (!/(\b\d{4}\b|present)/i.test(t)) return { range: '', startDate: '', endDate: '' };
+                const splitter = /\s[-–—]\s/;
+                let startDate = '', endDate = '';
+                if (splitter.test(t)) {
+                    const [start, end] = t.split(splitter);
+                    startDate = (start || '').trim();
+                    endDate = (end || '').trim();
+                } else {
+                    startDate = t;
+                }
+                const range = endDate ? `${startDate} - ${endDate}` : startDate;
+                return { range, startDate, endDate };
+            }
+
+            // Collect date candidates: explicit date element, plus any span with a year/Present
+            const dateCandidates = [];
+            const rawMeta = dateElem?.textContent?.trim();
+            if (rawMeta) dateCandidates.push(rawMeta);
+            for (const s of allSpans) {
+                if (/\d{4}/.test(s) || /present/i.test(s)) dateCandidates.push(s);
+            }
+            // De-duplicate while preserving order
+            const seen = new Set();
+            const uniqueCandidates = dateCandidates.filter(s => {
+                if (seen.has(s)) return false;
+                seen.add(s);
+                return true;
+            });
+            let parsed = { range: '', startDate: '', endDate: '' };
+            for (const cand of uniqueCandidates) {
+                const p = parseDateRange(cand);
+                if (p.range) { parsed = p; break; }
+            }
+
+            // Degree + field
+            const degreeText = degreeElem?.textContent?.trim() || allSpans.find(s => s && !/(\b\d{4}\b|present)/i.test(s) && s !== (schoolElem?.textContent?.trim() || '')) || '';
+            let degree = degreeText;
+            let field = '';
+            if (degreeText.includes(',')) {
+                const parts = degreeText.split(',');
+                degree = (parts.shift() || '').trim();
+                field = parts.join(',').trim();
+            }
 
             const edu = {
                 school: schoolElem?.textContent?.trim() || allSpans[0] || '',
-                degree: degreeElem?.textContent?.trim() || allSpans[1] || '',
-                field: allSpans[2] || '',
-                duration: dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}/.test(s)) || '',
+                degree,
+                field,
+                duration: parsed.range || '',
                 description: ''
             };
+            if (parsed.startDate) edu.from = parsed.startDate;
+            if (parsed.endDate) edu.to = parsed.endDate;
 
             // Filter out viewer data (same logic as experiences)
             const isViewerData =
@@ -386,7 +441,94 @@ function extractProjectsData() {
                 description = lines.filter(l => l !== title && l !== date).join(' ').substring(0, 200);
             }
 
-            const project = { title, date, description, url };
+            // Extract contextual skills (same approach as experiences)
+            let contextualSkills = [];
+            try {
+                // 1) Direct span containing the explicit label 'Skills:'
+                const skillSpan = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
+                    .find(s => /\bSkills:\b/i.test(s.textContent || ''));
+                if (skillSpan) {
+                    const text = (skillSpan.textContent || '').replace(/^[\s\S]*?Skills:\s*/i, '').trim();
+                    const parts = text.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                    const seen = new Set();
+                    contextualSkills = parts.filter(p => {
+                        const key = p.toLowerCase();
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                }
+                // 2) Rows with label (projects sometimes use generic rows)
+                if (!contextualSkills.length) {
+                    const rows = Array.from(item.querySelectorAll('.display-flex.align-items-center.t-14.t-normal.t-black'))
+                        .filter(row => /\bSkills:\b/i.test(row.textContent || ''));
+                    for (const row of rows) {
+                        const strong = row.querySelector('strong');
+                        const container = strong ? strong.parentElement : row;
+                        const raw = (container?.textContent || '').replace(/\s+/g, ' ').trim();
+                        const m = raw.match(/Skills:\s*(.*)$/i);
+                        if (m) {
+                            const stripped = m[1].trim();
+                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                            const seen = new Set();
+                            const tokens = parts.filter(p => {
+                                const key = p.toLowerCase();
+                                if (seen.has(key)) return false;
+                                seen.add(key);
+                                return true;
+                            });
+                            if (tokens.length) {
+                                contextualSkills = tokens;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // 3) Fallback: any strong label with 'Skills:'
+                if (!contextualSkills.length) {
+                    const labels = Array.from(item.querySelectorAll('strong'))
+                        .filter(el => /\bSkills:\b/i.test(el.textContent || ''));
+                    for (const strong of labels) {
+                        const raw = (strong.parentElement?.textContent || '').replace(/\s+/g, ' ').trim();
+                        const m = raw.match(/Skills:\s*(.*)$/i);
+                        if (m) {
+                            const stripped = m[1].trim();
+                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                            const seen = new Set();
+                            const tokens = parts.filter(p => {
+                                const key = p.toLowerCase();
+                                if (seen.has(key)) return false;
+                                seen.add(key);
+                                return true;
+                            });
+                            if (tokens.length) {
+                                contextualSkills = tokens;
+                                break;
+                            }
+                        }
+                    }
+                }
+                // 4) Text-based fallback: scan inner text for a line starting with 'Skills:'
+                if (!contextualSkills.length) {
+                    const text = (item.innerText || item.textContent || '').trim();
+                    const mt = text.match(/Skills:\s*(.+?)(?:\r?\n|$)/i);
+                    if (mt && mt[1]) {
+                        const parts = mt[1].trim().split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
+                        const seen = new Set();
+                        contextualSkills = parts.filter(p => {
+                            const key = p.toLowerCase();
+                            if (seen.has(key)) return false;
+                            if (/\bSkills:\b/i.test(p) || p.includes(' - ')) return false;
+                            seen.add(key);
+                            return true;
+                        });
+                    }
+                }
+            } catch (e) {
+                // ignore skills extraction errors for projects
+            }
+
+            const project = { title, date, description, url, contextual_skills: contextualSkills };
 
             // Minimal filtering for debugging
             const isGarbage =

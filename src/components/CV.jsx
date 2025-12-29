@@ -161,6 +161,13 @@ export default function CV({ data }) {
                     ))}
                   </ul>
                 )}
+                {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
+                  <ul className="cv-experience-skills">
+                    {proj.contextual_skills.map((s, k) => (
+                      <li key={k} className="cv-skill">{s}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
           </div>
@@ -177,7 +184,15 @@ export default function CV({ data }) {
                   <div className="cv-item__role">{edu.school}</div>
                   <div className="cv-item__meta">
                     <span className="cv-item__company">{edu.degree}{edu.field ? ` • ${edu.field}` : ''}</span>
-                    {edu.duration && <span className="cv-item__date">{edu.duration}</span>}
+                    {(() => {
+                      const dateDisplay =
+                        (edu.from || edu.to)
+                          ? `${edu.from || ''}${edu.to ? ` – ${edu.to}` : ''}`
+                          : (edu.duration || '');
+                      return dateDisplay ? (
+                        <span className="cv-item__date">{dateDisplay}</span>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
               </div>
