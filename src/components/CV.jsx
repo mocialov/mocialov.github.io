@@ -1,8 +1,6 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
 
-const LinkedInURL = 'https://www.linkedin.com/in/williamhgates/';
-
 function safeList(text) {
   if (!text) return [];
   // Split only on explicit list markers or newlines; avoid periods which caused over-bulleting
@@ -152,7 +150,6 @@ export default function CV({ data }) {
               {locCountry && <span className="cv-contact__country">{locCountry}</span>}
             </div>
           )}
-          <div className="cv-contact cv-contact--linkedin"><a href={LinkedInURL} target="_blank" rel="noopener noreferrer">LinkedIn: williamhgates</a></div>
         </div>
       </header>
 
