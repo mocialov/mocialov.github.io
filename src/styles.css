@@ -648,6 +648,9 @@ details summary:hover {
   font-size: 14px;
 }
 
+/* Avoid link-hand cursor inside printable CV area */
+.cv-page a { cursor: default; }
+
 /* CV contact location: inline on screen, stacked in print */
 .cv-contact--location { display: inline-flex; }
 .cv-contact__city, .cv-contact__country { display: inline; }
@@ -694,6 +697,8 @@ details summary:hover {
 .cv-item + .cv-item { border-top: 1px solid #e5e7eb; }
 .cv-item__line { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
 .cv-item__content { display: block; }
+.cv-item__after { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.cv-item__desc, .cv-item__skills { grid-column: 1 / -1; }
 .cv-item__role { font-weight: 700; font-size: 14px; }
 .cv-item__meta { display: flex; gap: 8px; color: #6b7280; font-size: 12px; }
 .cv-item__company { font-weight: 600; }
@@ -775,6 +780,7 @@ details summary:hover {
   /* Ensure skills never show bullets in print */
   .cv-skills li, .cv-experience-skills li { list-style: none !important; }
   .cv-item__line { grid-template-columns: 35mm 1fr; gap: 6mm; }
+  .cv-item__after { grid-template-columns: 35mm 1fr; gap: 6mm; }
   .cv-cert-list { margin-top: 6mm; }
   .cv-cert-list li { padding: 5mm 0; grid-template-columns: 35mm 1fr; gap: 6mm; }
   .cv-item__date--lead { white-space: nowrap !important; }

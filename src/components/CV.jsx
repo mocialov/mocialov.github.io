@@ -25,9 +25,9 @@ function sanitizeParagraph(text) {
   if (!text) return '';
   const raw = String(text).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
   return DOMPurify.sanitize(raw, {
-    ALLOWED_TAGS: ['b','strong','i','em','u','br','p','a','span'],
-    ALLOWED_ATTR: ['href','target','rel'],
-    ADD_ATTR: ['target','rel']
+    ALLOWED_TAGS: ['b','strong','i','em','u','br','p','span'],
+    ALLOWED_ATTR: [],
+    FORBID_TAGS: ['a']
   });
 }
 
@@ -77,6 +77,10 @@ export default function CV({ data }) {
 
   const filteredEducation = data.education || [];
   const topSkills = (data.skills || []).slice(0, 12);
+  const filteredPublications = (data.publications || []);
+  const filteredHonors = (data.honors || []);
+  const filteredLanguages = (data.languages || []);
+  const filteredPatents = (data.patents || []);
 
   const sanitizeSummaryHtml = (htmlOrText) => {
     if (!htmlOrText) return '';
@@ -84,11 +88,11 @@ export default function CV({ data }) {
     const raw = looksLikeHtml ? htmlOrText : String(htmlOrText).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
     return DOMPurify.sanitize(raw, {
       ALLOWED_TAGS: [
-        'b','strong','i','em','u','br','p','ul','ol','li','a',
+        'b','strong','i','em','u','br','p','ul','ol','li',
         'h1','h2','h3','h4','h5','h6','span','div','pre','code','blockquote','hr','sup','sub'
       ],
-      ALLOWED_ATTR: ['href','target','rel'],
-      ADD_ATTR: ['target','rel']
+      ALLOWED_ATTR: [],
+      FORBID_TAGS: ['a']
     });
   };
 
@@ -190,29 +194,33 @@ export default function CV({ data }) {
                       <span className="cv-item__company">{exp.company}</span>
                       {exp.location && <span className="cv-item__loc">{exp.location}</span>}
                     </div>
+                  </div>
+                </div>
+                {(exp.description || (Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0)) && (
+                  <div className="cv-item__after">
                     {exp.description && (
                       isLikelyList(exp.description) ? (
-                        <ul className="cv-bullets">
+                        <ul className="cv-bullets cv-item__desc">
                           {safeList(exp.description).map((b, j) => (
                             <li key={j}>{b}</li>
                           ))}
                         </ul>
                       ) : (
                         <div
-                          className="cv-item__text"
+                          className="cv-item__text cv-item__desc"
                           dangerouslySetInnerHTML={{ __html: sanitizeParagraph(exp.description) }}
                         />
                       )
                     )}
                     {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
-                      <ul className="cv-experience-skills">
+                      <ul className="cv-experience-skills cv-item__skills">
                         {exp.contextual_skills.map((s, k) => (
                           <li key={k} className="cv-skill">{s}</li>
                         ))}
                       </ul>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -230,36 +238,34 @@ export default function CV({ data }) {
                     {formatDateText({ dates: proj.date })}
                   </div>
                   <div className="cv-item__content">
-                    <div className="cv-item__role">
-                    {proj.url ? (
-                      <a href={proj.url} target="_blank" rel="noopener noreferrer">{proj.title}</a>
-                    ) : (
-                      proj.title
-                    )}
-                    </div>
+                    <div className="cv-item__role">{proj.title}</div>
+                  </div>
+                </div>
+                {(proj.description || (Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0)) && (
+                  <div className="cv-item__after">
                     {proj.description && (
                       isLikelyList(proj.description) ? (
-                        <ul className="cv-bullets">
+                        <ul className="cv-bullets cv-item__desc">
                           {safeList(proj.description).map((b, j) => (
                             <li key={j}>{b}</li>
                           ))}
                         </ul>
                       ) : (
                         <div
-                          className="cv-item__text"
+                          className="cv-item__text cv-item__desc"
                           dangerouslySetInnerHTML={{ __html: sanitizeParagraph(proj.description) }}
                         />
                       )
                     )}
                     {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
-                      <ul className="cv-experience-skills">
+                      <ul className="cv-experience-skills cv-item__skills">
                         {proj.contextual_skills.map((s, k) => (
                           <li key={k} className="cv-skill">{s}</li>
                         ))}
                       </ul>
                     )}
                   </div>
-                </div>
+                )}
               </div>
             ))}
           </div>
@@ -305,22 +311,24 @@ export default function CV({ data }) {
                       <span className="cv-item__company">{vol.organization}</span>
                       {vol.cause && <span className="cv-item__loc">{vol.cause}</span>}
                     </div>
-                    {vol.description && (
-                      isLikelyList(vol.description) ? (
-                        <ul className="cv-bullets">
-                          {safeList(vol.description).map((b, j) => (
-                            <li key={j}>{b}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div
-                          className="cv-item__text"
-                          dangerouslySetInnerHTML={{ __html: sanitizeParagraph(vol.description) }}
-                        />
-                      )
-                    )}
                   </div>
                 </div>
+                {vol.description && (
+                  <div className="cv-item__after">
+                    {isLikelyList(vol.description) ? (
+                      <ul className="cv-bullets cv-item__desc">
+                        {safeList(vol.description).map((b, j) => (
+                          <li key={j}>{b}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div
+                        className="cv-item__text cv-item__desc"
+                        dangerouslySetInnerHTML={{ __html: sanitizeParagraph(vol.description) }}
+                      />
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -341,6 +349,99 @@ export default function CV({ data }) {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {filteredPublications.length > 0 && (
+        <section className="cv-section">
+          <h2 className="cv-section__title">Publications</h2>
+          <div className="cv-list">
+            {filteredPublications.map((pub, i) => (
+              <div key={i} className="cv-item">
+                <div className="cv-item__line">
+                  <div className="cv-item__date cv-item__date--lead">
+                    {formatDateText({ dates: pub.date })}
+                  </div>
+                  <div className="cv-item__content">
+                    <div className="cv-item__role">{pub.title}</div>
+                    <div className="cv-item__meta">
+                      {pub.publisher && <span className="cv-item__company">{pub.publisher}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {filteredHonors.length > 0 && (
+        <section className="cv-section">
+          <h2 className="cv-section__title">Honors & Awards</h2>
+          <div className="cv-list">
+            {filteredHonors.map((hon, i) => (
+              <div key={i} className="cv-item">
+                <div className="cv-item__line">
+                  <div className="cv-item__date cv-item__date--lead">
+                    {formatDateText({ dates: hon.date })}
+                  </div>
+                  <div className="cv-item__content">
+                    <div className="cv-item__role">{hon.title}</div>
+                    <div className="cv-item__meta">
+                      {hon.issuer && <span className="cv-item__company">{hon.issuer}</span>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {filteredLanguages.length > 0 && (
+        <section className="cv-section">
+          <h2 className="cv-section__title">Languages</h2>
+          <ul className="cv-experience-skills">
+            {filteredLanguages.map((lang, i) => (
+              <li key={i} className="cv-skill">{lang}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {filteredPatents.length > 0 && (
+        <section className="cv-section">
+          <h2 className="cv-section__title">Patents</h2>
+          <div className="cv-list">
+            {filteredPatents.map((pat, i) => (
+              <div key={i} className="cv-item">
+                <div className="cv-item__line">
+                  <div className="cv-item__date cv-item__date--lead">
+                    {formatDateText({ dates: pat.date })}
+                  </div>
+                  <div className="cv-item__content">
+                    <div className="cv-item__role">{pat.title}{pat.number ? ` • ${pat.number}` : ''}</div>
+                    <div className="cv-item__meta">
+                      {pat.issuer && <span className="cv-item__company">{pat.issuer}</span>}
+                    </div>
+                  </div>
+                </div>
+                {pat.description && (
+                  <div className="cv-item__after">
+                    {isLikelyList(pat.description) ? (
+                      <ul className="cv-bullets cv-item__desc">
+                        {safeList(pat.description).map((b, j) => (
+                          <li key={j}>{b}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="cv-item__text cv-item__desc" dangerouslySetInnerHTML={{ __html: sanitizeParagraph(pat.description) }} />
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </section>
       )}
     </div>

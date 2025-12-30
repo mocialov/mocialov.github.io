@@ -1474,7 +1474,7 @@ function App() {
 
           {/* Printable CV (collapsed by default) */}
           <details style={{ marginTop: 16 }}>
-            <summary style={{ cursor: 'pointer', marginBottom: 8 }}>🧾 Printable CV (PDF-friendly)</summary>
+            <summary style={{ cursor: 'default', marginBottom: 8 }}>🧾 Printable CV (PDF-friendly)</summary>
             <div style={{ marginBottom: 12 }}>
               <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
                 🖨️ Print / Save as PDF
