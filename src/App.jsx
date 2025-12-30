@@ -18,6 +18,7 @@ function App() {
   const [excludedKeys, setExcludedKeys] = useState([]); // track removed items per section
   const [draftData, setDraftData] = useState(null); // editable copy
   const [profileUrl, setProfileUrl] = useState('');
+  const [hiddenSections, setHiddenSections] = useState([]); // track removed sections
 
   // Sanitize and format summary HTML while allowing basic formatting
   const sanitizeSummaryHtml = (htmlOrText) => {
@@ -180,22 +181,29 @@ function App() {
 
   const clearExclusions = () => setExcludedKeys([]);
 
+  const isSectionHidden = (section) => hiddenSections.includes(section);
+  const hideSection = (section) => setHiddenSections((prev) => (prev.includes(section) ? prev : [...prev, section]));
+  const clearHiddenSections = () => setHiddenSections([]);
+
   // Apply viewer-data filters and user exclusions
   const filteredForScreen = draftData ? {
-    experience: filterViewerData(draftData.experience).filter(exp => !isExcluded('experience', exp)),
-    education: (draftData.education || []).filter(edu => !isExcluded('education', edu)),
-    certifications: filterCertificationViewerData(draftData.certifications).filter(cert => !isExcluded('certifications', cert)),
-    projects: filterProjectsData(draftData.projects).filter(proj => !isExcluded('projects', proj)),
-    volunteer: filterVolunteeringData(draftData.volunteer).filter(vol => !isExcluded('volunteer', vol)),
-    publications: filterPublicationsData(draftData.publications).filter(pub => !isExcluded('publications', pub)),
-    honors: filterHonorsData(draftData.honors).filter(honor => !isExcluded('honors', honor)),
-    languages: filterLanguagesData(draftData.languages).filter(lang => !isExcluded('languages', lang)),
-    patents: filterPatentsData(draftData.patents).filter(patent => !isExcluded('patents', patent)),
-    skills: (draftData.skills || []).filter(skill => !isExcluded('skills', skill))
+    experience: isSectionHidden('experience') ? [] : filterViewerData(draftData.experience).filter(exp => !isExcluded('experience', exp)),
+    education: isSectionHidden('education') ? [] : (draftData.education || []).filter(edu => !isExcluded('education', edu)),
+    certifications: isSectionHidden('certifications') ? [] : filterCertificationViewerData(draftData.certifications).filter(cert => !isExcluded('certifications', cert)),
+    projects: isSectionHidden('projects') ? [] : filterProjectsData(draftData.projects).filter(proj => !isExcluded('projects', proj)),
+    volunteer: isSectionHidden('volunteer') ? [] : filterVolunteeringData(draftData.volunteer).filter(vol => !isExcluded('volunteer', vol)),
+    publications: isSectionHidden('publications') ? [] : filterPublicationsData(draftData.publications).filter(pub => !isExcluded('publications', pub)),
+    honors: isSectionHidden('honors') ? [] : filterHonorsData(draftData.honors).filter(honor => !isExcluded('honors', honor)),
+    languages: isSectionHidden('languages') ? [] : filterLanguagesData(draftData.languages).filter(lang => !isExcluded('languages', lang)),
+    patents: isSectionHidden('patents') ? [] : filterPatentsData(draftData.patents).filter(patent => !isExcluded('patents', patent)),
+    skills: isSectionHidden('skills') ? [] : (draftData.skills || []).filter(skill => !isExcluded('skills', skill))
   } : null;
 
   const filteredForPrint = draftData ? {
     ...draftData,
+    // if summary is hidden, drop it from print
+    about: isSectionHidden('summary') ? '' : draftData.about,
+    aboutHtml: isSectionHidden('summary') ? '' : draftData.aboutHtml,
     experience: filteredForScreen.experience,
     education: filteredForScreen.education,
     certifications: filteredForScreen.certifications,
@@ -297,7 +305,7 @@ function App() {
 
   const startBrowserHeadless = async () => {
     setLoading(true);
-    setStatus('Starting browser in headless mode (using saved session)...');
+    setStatus('Starting using saved session...');
     try {
       const response = await fetch(`${API_URL}/api/start-browser`, {
         method: 'POST',
@@ -307,7 +315,7 @@ function App() {
       const data = await response.json();
       if (data.success) {
         setBrowserOpen(true);
-        setStatus('✅ Headless browser started! Checking login status...');
+        setStatus('✅ Checking login status...');
         // Check if already logged in
         setTimeout(checkLoginStatus, 2000);
       }
@@ -376,7 +384,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/navigate-to-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileUrl: isValidProfileUrl(profileUrl) ? profileUrl : 'https://www.linkedin.com/in/mocialov/' })
+        body: JSON.stringify({ profileUrl: isValidProfileUrl(profileUrl) ? profileUrl : 'https://www.linkedin.com/in/williamhgates/' })
       });
 
       const result = await response.json();
@@ -399,7 +407,7 @@ function App() {
       const response = await fetch(`${API_URL}/api/scrape-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileUrl: isValidProfileUrl(profileUrl) ? profileUrl : 'https://www.linkedin.com/in/mocialov/' })
+        body: JSON.stringify({ profileUrl: isValidProfileUrl(profileUrl) ? profileUrl : 'https://www.linkedin.com/in/williamhgates/' })
       });
 
       const result = await response.json();
@@ -427,7 +435,7 @@ function App() {
     }
 
     setLoading(true);
-    setStatus('🚀 Starting headless scrape sequence...');
+    setStatus('🚀 Starting sequence...');
     try {
       // 1) Start browser in headless mode (reuse saved session if present)
       const startRes = await fetch(`${API_URL}/api/start-browser`, {
@@ -437,7 +445,7 @@ function App() {
       });
       const startData = await startRes.json();
       if (!startData.success) throw new Error(startData.error || 'Failed to start headless browser');
-      setStatus('👻 Headless browser started. Scraping...');
+      setStatus('👻 Getting LinkedIn data...');
 
       // 2) Scrape profile directly (navigation happens inside endpoint)
       const scrapeRes = await fetch(`${API_URL}/api/scrape-profile`, {
@@ -456,7 +464,7 @@ function App() {
       if (!result.success) throw new Error(result.error || 'Scrape failed');
 
       setLinkedinData(result.data);
-      setStatus('✅ Data extracted successfully in headless mode!');
+      setStatus('✅ LinkedIn data extracted successfully!');
 
     } catch (error) {
       setStatus(`❌ Default sequence failed: ${error.message}`);
@@ -518,20 +526,28 @@ function App() {
 
   return (
     <div className="container">
-      <h1 className="title">🔗 LinkedIn Profile Extractor</h1>
-      <p className="subtitle">Extract ALL your LinkedIn profile data - including all past workplaces</p>
+      <h1 className="title">Build CV using LinkedIn Profile</h1>
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12 }}>
+        <label style={{ whiteSpace: 'nowrap', fontSize: 14, color: '#374151' }}>Profile URL</label>
         <input
           type="url"
           value={profileUrl}
           onChange={(e) => setProfileUrl(e.target.value.trim())}
           placeholder="https://www.linkedin.com/in/your-handle/"
           style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: '1px solid #e5e7eb' }}
+          title={!profileUrl || isValidProfileUrl(profileUrl) ? '' : 'Enter a valid LinkedIn profile URL'}
         />
-        <span style={{ fontSize: 12, color: isValidProfileUrl(profileUrl) || !profileUrl ? '#6b7280' : '#ef4444' }}>
-          {profileUrl && !isValidProfileUrl(profileUrl) ? 'Enter a valid LinkedIn profile URL' : 'Profile URL'}
-        </span>
+        {!DEBUG && (
+          <button
+            onClick={runDefaultSequence}
+            disabled={loading || !isValidProfileUrl(profileUrl)}
+            className="button-minimal"
+            title="Builds your profile from LinkedIn using the provided URL"
+          >
+            {loading ? 'Building…' : 'Build Profile'}
+          </button>
+        )}
       </div>
 
       {/* <div className="instructions">
@@ -604,17 +620,7 @@ function App() {
               </button>
             )}
           </>
-        ) : (
-          <button
-            onClick={runDefaultSequence}
-            disabled={loading || !isValidProfileUrl(profileUrl)}
-            className="button"
-            style={{ background: '#10b981', fontSize: '18px', padding: '16px 32px' }}
-            title="Runs headless scrape sequence using the provided LinkedIn URL"
-          >
-            {loading ? '⏳ Running Headless Scrape...' : '📊 Scrape Profile (Headless)'}
-          </button>
-        )}
+        ) : null}
       </div>
 
       {status && (
@@ -676,23 +682,20 @@ function App() {
 
       {draftData && (
         <div className="result">
-          <div className="cv-actions">
-            <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
-              🧾 Download PDF (Print)
-            </button>
-            <button onClick={downloadData} className="button" style={{ background: '#374151' }}>
-              💾 Download JSON
-            </button>
-            <button onClick={() => setDraftData(linkedinData)} className="button" style={{ background: '#0ea5e9' }} title="Restore original scraped data">
-              ↩️ Reset Edits
-            </button>
-            <button onClick={clearExclusions} className="button" style={{ background: '#ef4444' }} title="Restore all removed items">
-              ♻️ Reset Removals
+          <div className="cv-actions" style={{ marginBottom: 12 }}>
+            <button
+              onClick={() => {
+                setDraftData(linkedinData);
+                clearExclusions();
+                clearHiddenSections();
+              }}
+              className="button"
+              style={{ background: '#0ea5e9' }}
+              title="Restore original scraped data and undo removals"
+            >
+              ↩️ Reset Any Edits
             </button>
           </div>
-
-          {/* CV Page (Print-Optimized) */}
-          <CV data={filteredForPrint} />
 
           {/* Visual Profile (Interactive, on-screen) */}
           {/* SECTION 1: HEADER - Contact & Profile Summary */}
@@ -727,9 +730,17 @@ function App() {
           </div>
 
           {/* Professional Summary */}
-          {typeof draftData.about !== 'undefined' && (
+          {typeof draftData.about !== 'undefined' && !isSectionHidden('summary') && (
             <div className="section">
-              <h2 className="section-title">Professional Summary</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">Professional Summary</h2>
+                <button
+                  onClick={() => hideSection('summary')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <EditableText
                 tag="div"
                 className="about-text"
@@ -744,7 +755,15 @@ function App() {
           {/* SECTION 2: CORE SKILLS - Most Important for Recruiters */}
           {filteredForScreen && filteredForScreen.skills && filteredForScreen.skills.length > 0 && (
             <div className="section">
-              <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
+                <button
+                  onClick={() => hideSection('skills')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="skills-grid">
                 {filteredForScreen.skills.slice(0, 15).map((skill, i) => (
                   <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
@@ -807,7 +826,15 @@ function App() {
           {/* SECTION 3: PROFESSIONAL EXPERIENCE - Core Section */}
           {filteredForScreen && filteredForScreen.experience && filteredForScreen.experience.length > 0 && (
             <div className="section">
-              <h2 className="section-title">💼 Professional Experience</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">💼 Professional Experience</h2>
+                <button
+                  onClick={() => hideSection('experience')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="experience-count">
                 {filteredForScreen.experience.length} positions
               </div>
@@ -908,7 +935,15 @@ function App() {
           {/* SECTION 4: EDUCATION */}
           {filteredForScreen && filteredForScreen.education && filteredForScreen.education.length > 0 && (
             <div className="section">
-              <h2 className="section-title">🎓 Education</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">🎓 Education</h2>
+                <button
+                  onClick={() => hideSection('education')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="education-list">
                 {filteredForScreen.education.map((edu, i) => (
                   <div key={i} className="education-item">
@@ -961,7 +996,15 @@ function App() {
           {/* SECTION 5: CERTIFICATIONS & CREDENTIALS */}
           {filteredForScreen && filteredForScreen.certifications && filteredForScreen.certifications.length > 0 && (
             <div className="section">
-              <h2 className="section-title">📜 Certifications & Credentials</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">📜 Certifications & Credentials</h2>
+                <button
+                  onClick={() => hideSection('certifications')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="certifications-grid">
                 {filteredForScreen.certifications.map((cert, i) => (
                   <div key={i} className="certification-item">
@@ -1003,7 +1046,15 @@ function App() {
           {/* SECTION 6: PROJECTS */}
           {filteredForScreen && filteredForScreen.projects && filteredForScreen.projects.length > 0 && (
             <div className="section">
-              <h2 className="section-title">🚀 Projects</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">🚀 Projects</h2>
+                <button
+                  onClick={() => hideSection('projects')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="timeline">
                 {filteredForScreen.projects.map((proj, i) => (
                   <div key={i} className="experience-item">
@@ -1065,7 +1116,15 @@ function App() {
           {/* SECTION 7: VOLUNTEERING */}
           {filteredForScreen && filteredForScreen.volunteer && filteredForScreen.volunteer.length > 0 && (
             <div className="section">
-              <h2 className="section-title">❤️ Volunteering</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">❤️ Volunteering</h2>
+                <button
+                  onClick={() => hideSection('volunteer')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="timeline">
                 {filteredForScreen.volunteer.map((vol, i) => (
                   <div key={i} className="experience-item">
@@ -1143,7 +1202,15 @@ function App() {
           {/* SECTION 8: PUBLICATIONS */}
           {filteredForScreen && filteredForScreen.publications && filteredForScreen.publications.length > 0 && (
             <div className="section">
-              <h2 className="section-title">📚 Publications</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">📚 Publications</h2>
+                <button
+                  onClick={() => hideSection('publications')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="timeline">
                 {filteredForScreen.publications.map((pub, i) => (
                   <div key={i} className="experience-item">
@@ -1205,7 +1272,15 @@ function App() {
           {/* SECTION 9: HONORS & AWARDS */}
           {filteredForScreen && filteredForScreen.honors && filteredForScreen.honors.length > 0 && (
             <div className="section">
-              <h2 className="section-title">🏆 Honors & Awards</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">🏆 Honors & Awards</h2>
+                <button
+                  onClick={() => hideSection('honors')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="timeline">
                 {filteredForScreen.honors.map((honor, i) => (
                   <div key={i} className="experience-item">
@@ -1262,7 +1337,15 @@ function App() {
           {/* SECTION 10: LANGUAGES */}
           {filteredForScreen && filteredForScreen.languages && filteredForScreen.languages.length > 0 && (
             <div className="section">
-              <h2 className="section-title">🌐 Languages</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">🌐 Languages</h2>
+                <button
+                  onClick={() => hideSection('languages')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="skills-grid">
                 {filteredForScreen.languages.map((language, i) => (
                   <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
@@ -1293,7 +1376,15 @@ function App() {
           {/* SECTION 11: PATENTS */}
           {filteredForScreen && filteredForScreen.patents && filteredForScreen.patents.length > 0 && (
             <div className="section">
-              <h2 className="section-title">💡 Patents</h2>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 className="section-title">💡 Patents</h2>
+                <button
+                  onClick={() => hideSection('patents')}
+                  className="button"
+                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                  title="Remove this section"
+                >Remove section</button>
+              </div>
               <div className="timeline">
                 {filteredForScreen.patents.map((patent, i) => (
                   <div key={i} className="experience-item">
@@ -1367,9 +1458,29 @@ function App() {
             </div>
           )}
 
+          {DEBUG && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                <button onClick={downloadData} className="button" style={{ background: '#374151' }}>
+                  💾 Download JSON
+                </button>
+              </div>
+              <details>
+                <summary style={{ cursor: 'pointer', marginBottom: 8 }}>View Raw JSON</summary>
+                <pre style={{ fontSize: 12, overflow: 'auto' }}>{JSON.stringify(linkedinData, null, 2)}</pre>
+              </details>
+            </div>
+          )}
+
+          {/* Printable CV (collapsed by default) */}
           <details style={{ marginTop: 16 }}>
-            <summary style={{ cursor: 'pointer', marginBottom: 8 }}>View Raw JSON</summary>
-            <pre style={{ fontSize: 12, overflow: 'auto' }}>{JSON.stringify(linkedinData, null, 2)}</pre>
+            <summary style={{ cursor: 'pointer', marginBottom: 8 }}>🧾 Printable CV (PDF-friendly)</summary>
+            <div style={{ marginBottom: 12 }}>
+              <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
+                🖨️ Print / Save as PDF
+              </button>
+            </div>
+            <CV data={filteredForPrint} />
           </details>
         </div>
       )}

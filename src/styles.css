@@ -7,36 +7,40 @@
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   color: #1f2937;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #ffffff;
   min-height: 100vh;
-  display: flex;
-  align-items: flex-start; /* avoid vertical centering that can hinder scrolling */
-  justify-content: center;
-  padding: 20px;
+  display: block;
+  padding: 0;
   overflow-y: auto; /* ensure page scrolls when content is taller than viewport */
+}
+
+#root, html, body {
+  width: 100%;
+  min-height: 100vh;
 }
 
 #root {
   width: 100%;
-  display: flex;
-  justify-content: center;
+  display: block;
 }
 
 .app {
   width: 100%;
-  display: flex;
-  justify-content: center;
+  min-height: 100vh;
+  display: block;
 }
 
 .container {
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  background: #ffffff;
+  border-radius: 0;
+  box-shadow: none;
   padding: 40px;
-  max-width: 900px;
-  width: 100%;
-  max-height: 85vh; /* keep UI within viewport and allow internal scroll */
-  overflow-y: auto;
+  max-width: none;
+  width: 80%;
+  margin: 0 auto;
+  min-height: 100vh;
+  max-height: none;
+  overflow-y: visible;
 }
 
 .title {
@@ -105,6 +109,31 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Minimal, subdued button variant */
+.button-minimal {
+  appearance: none;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  color: #374151;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.button-minimal:hover {
+  background: #e5e7eb;
+  border-color: #d1d5db;
+}
+
+.button-minimal:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .result {

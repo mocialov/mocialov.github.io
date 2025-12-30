@@ -142,7 +142,7 @@ app.post('/api/navigate-to-profile', async (req, res) => {
       });
     }
 
-    const profileUrl = req.body.profileUrl || 'https://www.linkedin.com/in/mocialov/';
+    const profileUrl = req.body.profileUrl || 'https://www.linkedin.com/in/williamhgates/';
     console.log('🔍 Navigating to:', profileUrl);
 
     await page.goto(profileUrl, {
@@ -179,7 +179,7 @@ app.post('/api/scrape-profile', async (req, res) => {
       });
     }
 
-    const profileUrl = req.body.profileUrl || 'https://www.linkedin.com/in/mocialov/';
+    const profileUrl = req.body.profileUrl || 'https://www.linkedin.com/in/williamhgates/';
 
     // Navigate to profile with extended timeout and different wait strategy
     console.log('🔍 Navigating to:', profileUrl);
@@ -521,7 +521,7 @@ async function autoScroll(page) {
  * extracting data, and returning to the main profile.
  * 
  * @param {Object} page - Puppeteer page object
- * @param {string} profileUrl - Base profile URL (e.g., 'https://www.linkedin.com/in/mocialov/')
+ * @param {string} profileUrl - Base profile URL (e.g., 'https://www.linkedin.com/in/williamhgates/')
  * @param {string} detailsType - Type of details page ('experience', 'education', 'certifications', etc.)
  * @param {Function} extractionFunction - Function to extract data from the details page
  * @returns {Promise<Array>} - Extracted data array

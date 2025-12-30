@@ -1,7 +1,7 @@
 import React from 'react';
 import DOMPurify from 'dompurify';
 
-const LinkedInURL = 'https://www.linkedin.com/in/mocialov/';
+const LinkedInURL = 'https://www.linkedin.com/in/williamhgates/';
 
 function safeList(text) {
   if (!text) return [];
@@ -95,7 +95,7 @@ export default function CV({ data }) {
               {locCountry && <span className="cv-contact__country">{locCountry}</span>}
             </div>
           )}
-          <div className="cv-contact cv-contact--linkedin"><a href={LinkedInURL} target="_blank" rel="noopener noreferrer">LinkedIn: mocialov</a></div>
+          <div className="cv-contact cv-contact--linkedin"><a href={LinkedInURL} target="_blank" rel="noopener noreferrer">LinkedIn: williamhgates</a></div>
         </div>
       </header>
 
