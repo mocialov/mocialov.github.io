@@ -653,16 +653,24 @@ details summary:hover {
 .cv-contact__city, .cv-contact__country { display: inline; }
 .cv-contact--location .cv-contact__country::before { content: ', '; }
 
-.cv-section { margin-bottom: 12px; }
+.cv-section { margin-bottom: 16px; padding-top: 12px; border-top: 2px solid #e5e7eb; }
+.cv-section:first-of-type { border-top: none; padding-top: 0; }
 .cv-section__title {
   font-size: 16px;
   font-weight: 700;
   color: #111827;
   margin: 0 0 8px;
 }
-.cv-summary { font-size: 14px; line-height: 1.5; }
+.cv-summary { font-size: 14px; line-height: 1.6; }
 
-.cv-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-skills {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .cv-skill {
   border: 1px solid #e5e7eb;
   border-radius: 4px;
@@ -670,17 +678,35 @@ details summary:hover {
   font-size: 13px;
 }
 
-.cv-list { display: flex; flex-direction: column; gap: 8px; }
-.cv-item__header { display: flex; justify-content: space-between; align-items: baseline; }
+/* Experience contextual skills: render as chips, no bullets */
+.cv-experience-skills {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cv-experience-skills li { list-style: none; }
+
+.cv-list { display: flex; flex-direction: column; gap: 0; margin-left: 16px; }
+.cv-item { padding: 8px 0; }
+.cv-item + .cv-item { border-top: 1px solid #e5e7eb; }
+.cv-item__line { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.cv-item__content { display: block; }
 .cv-item__role { font-weight: 700; font-size: 14px; }
 .cv-item__meta { display: flex; gap: 8px; color: #6b7280; font-size: 12px; }
 .cv-item__company { font-weight: 600; }
 .cv-item__date, .cv-item__loc { color: #6b7280; }
-.cv-bullets { margin: 6px 0 0 18px; font-size: 13px; }
-.cv-bullets li { line-height: 1.4; }
+.cv-item__date--lead { color: #111827; font-weight: 600; font-size: 12px; white-space: nowrap; word-break: keep-all; padding-right: 8px; display: block; box-sizing: border-box; }
+.cv-bullets { margin: 8px 0 0 0; padding-left: 0; list-style-position: inside; font-size: 13px; }
+.cv-bullets li { line-height: 1.6; }
 
-.cv-inline { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; }
-.cv-inline li { list-style: none; }
+.cv-item__text { font-size: 13px; margin-top: 8px; }
+
+.cv-cert-list { list-style: none; padding: 0; margin: 12px 0 0 16px; }
+.cv-cert-list li { padding: 12px 0; display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.cv-cert-list li + li { border-top: 1px solid #e5e7eb; }
 .cv-cert__name { font-weight: 600; }
 
 /* Print rules */
@@ -710,7 +736,6 @@ details summary:hover {
   .button,
   .logs-panel,
   .section,
-  details,
   .error {
     display: none !important;
   }
@@ -728,6 +753,9 @@ details summary:hover {
   body * { visibility: hidden; }
   #cv, #cv * { visibility: visible; }
   #cv { position: absolute; left: 0; top: 0; width: 100%; }
+  /* Ensure CV shows even if wrapped by a <details> */
+  details { display: block !important; }
+  details > summary { display: none !important; }
 
   /* LinkedIn contact hidden in print */
   .cv-contact--linkedin { display: none !important; }
@@ -740,4 +768,14 @@ details summary:hover {
 
   /* Exclude Skills section from CV during print */
   .cv-skills-section { display: none !important; }
+
+  /* Improve readability and avoid awkward breaks on print */
+  .cv-section, .cv-item { break-inside: avoid; page-break-inside: avoid; }
+  .cv-item + .cv-item { border-top-color: #d1d5db; }
+  /* Ensure skills never show bullets in print */
+  .cv-skills li, .cv-experience-skills li { list-style: none !important; }
+  .cv-item__line { grid-template-columns: 35mm 1fr; gap: 6mm; }
+  .cv-cert-list { margin-top: 6mm; }
+  .cv-cert-list li { padding: 5mm 0; grid-template-columns: 35mm 1fr; gap: 6mm; }
+  .cv-item__date--lead { white-space: nowrap !important; }
 }

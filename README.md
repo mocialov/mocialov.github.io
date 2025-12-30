@@ -99,6 +99,17 @@ npm install
 
 All methods save extracted data to JSON files in the `scripts/` directory for easy review and use.
 
+## Printable CV (PDF)
+
+After extracting your data via the app:
+
+1. Run the app: `pkill -f "node server/index.js"; npm run dev`
+2. Open `http://localhost:5173`
+3. Extract your data and scroll to "Printable CV (PDF-friendly)"
+4. Click "Print / Save as PDF" to export a clean, print-optimized CV.
+
+Sections and entries are separated with subtle dividers and improved spacing for readability.
+
 ## LinkedIn Data Export Instructions
 
 1. Go to [LinkedIn Data Settings](https://www.linkedin.com/psettings/member-data)
