@@ -93,21 +93,56 @@ function extractExperienceData() {
                 s !== companyLine
             ) || '';
 
-            // Description is usually in a container with specific class or the longest non-metadata text
+            // Description: prefer structured sub-components and preserve line breaks
             let description = '';
-            const descContainer = item.querySelector('.inline-show-more-text, .pvs-list__outer-container');
-            if (descContainer) {
-                description = descContainer.textContent.trim().replace(/\s+/g, ' ');
-            } else {
-                // Look for longer text that's not metadata
-                const longText = allSpans.find(s =>
-                    s.length > 50 &&
-                    s !== title &&
-                    s !== companyLine &&
-                    s !== dates &&
-                    s !== location
-                );
-                if (longText) description = longText;
+            try {
+                const sub = item.querySelector('.pvs-entity__sub-components');
+                if (sub) {
+                    const rowItems = Array.from(sub.querySelectorAll('li.pvs-list__item--with-top-padding'));
+                    // Identify index of first skills row
+                    const skillsIndex = rowItems.findIndex(li => /\bSkills:\b/i.test(li.textContent || ''));
+                    const candidateRows = (skillsIndex === -1 ? rowItems : rowItems.slice(0, skillsIndex))
+                        .filter(li => !li.querySelector('a.optional-action-target-wrapper'));
+                    const parts = [];
+                    for (const li of candidateRows) {
+                        const span = li.querySelector('span[aria-hidden="true"]');
+                        const lines = (span?.innerText || span?.textContent || li.innerText || li.textContent || '')
+                            .replace(/\r\n?/g, '\n')
+                            .split('\n')
+                            // Preserve empty lines; trim only trailing spaces
+                            .map(s => s.replace(/\s+$/,''));
+                        const text = lines.join('\n');
+                        if (!text) continue;
+                        if (/\bSkills:\b/i.test(text)) continue;
+                        if (text === title || text === companyLine || text === dates || text === location) continue;
+                        parts.push(text);
+                    }
+                    if (parts.length) {
+                        description = parts.join('\n').trim();
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            if (!description) {
+                const descContainer = item.querySelector('.inline-show-more-text, .pvs-list__outer-container');
+                if (descContainer) {
+                    const raw = (descContainer.innerText || descContainer.textContent || '').replace(/\r\n?/g, '\n');
+                    const lines = raw
+                        .split('\n')
+                        // Preserve empty lines; trim only trailing spaces
+                        .map(s => s.replace(/\s+$/,''));
+                    description = lines.join('\n');
+                } else {
+                    // Fallback: longest non-metadata line
+                    const longText = allSpans.find(s =>
+                        s.length > 50 &&
+                        s !== title &&
+                        s !== companyLine &&
+                        s !== dates &&
+                        s !== location
+                    );
+                    if (longText) description = longText;
+                }
             }
 
             // Ensure description does not include a trailing Skills: label (skills are extracted separately)
@@ -453,7 +488,12 @@ function extractProjectsData() {
                     const parts = [];
                     for (const li of candidateRows) {
                         const span = li.querySelector('span[aria-hidden="true"]');
-                        const text = (span?.textContent || li.textContent || '').replace(/\s+/g, ' ').trim();
+                        const text = (span?.innerText || span?.textContent || li.innerText || li.textContent || '')
+                            .replace(/\r\n?/g, '\n')
+                            .split('\n')
+                            .map(s => s.trim())
+                            .filter(Boolean)
+                            .join('\n');
                         if (!text) continue;
                         if (/\bSkills:\b/i.test(text)) continue;
                         // Avoid repeating the title or date
@@ -461,7 +501,7 @@ function extractProjectsData() {
                         parts.push(text);
                     }
                     if (parts.length) {
-                        description = parts.join(' ').trim();
+                        description = parts.join('\n').trim();
                     }
                 }
             } catch (e) {
@@ -471,11 +511,16 @@ function extractProjectsData() {
                 // Fallbacks: explicit expandable text or text-based heuristic
                 const descElem = item.querySelector('.inline-show-more-text');
                 if (descElem) {
-                    description = descElem.innerText.trim().replace(/\s+/g, ' ');
+                    const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
+                    description = raw
+                        .split('\n')
+                        .map(s => s.trim())
+                        .filter(Boolean)
+                        .join('\n');
                 } else {
                     description = lines
                         .filter(l => l !== title && l !== date && !/\bSkills:\b/i.test(l))
-                        .join(' ')
+                        .join('\n')
                         .substring(0, 300)
                         .trim();
                 }
@@ -1058,7 +1103,12 @@ function extractVolunteeringData() {
             let description = '';
             const descElem = item.querySelector('.inline-show-more-text');
             if (descElem) {
-                description = (descElem.innerText || descElem.textContent || '').trim().replace(/\s+/g, ' ');
+                const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
+                description = raw
+                    .split('\n')
+                    .map(s => s.trim())
+                    .filter(Boolean)
+                    .join('\n');
             }
             // Fallback: parse sub-component rows under the volunteering item
             if (!description) {
@@ -1070,7 +1120,12 @@ function extractVolunteeringData() {
                         for (const li of rows) {
                             // Prefer visible span text first
                             const span = li.querySelector('span[aria-hidden="true"]');
-                            const text = (span?.textContent || li.textContent || '').replace(/\s+/g, ' ').trim();
+                            const text = (span?.innerText || span?.textContent || li.innerText || li.textContent || '')
+                                .replace(/\r\n?/g, '\n')
+                                .split('\n')
+                                .map(s => s.trim())
+                                .filter(Boolean)
+                                .join('\n');
                             if (!text) continue;
                             // Skip pure cause rows or duplicates of role/org/date/cause
                             const t = text.trim();
@@ -1085,8 +1140,8 @@ function extractVolunteeringData() {
                             parts.push(t);
                         }
                         if (parts.length) {
-                            // Join parts, but avoid including any trailing labels
-                            description = parts.join(' ').trim();
+                            // Join parts preserving line breaks
+                            description = parts.join('\n').trim();
                         }
                     }
                 } catch (e) {
@@ -1188,7 +1243,12 @@ function extractPublicationsData() {
             // Description
             const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
             if (descElem) {
-                pub.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+                const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
+                pub.description = raw
+                    .split('\n')
+                    .map(s => s.trim())
+                    .filter(Boolean)
+                    .join('\n');
             }
 
             // Filter garbage
@@ -1261,7 +1321,12 @@ function extractHonorsData() {
             // Description extraction
             const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
             if (descElem) {
-                honor.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+                const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
+                honor.description = raw
+                    .split('\n')
+                    .map(s => s.trim())
+                    .filter(Boolean)
+                    .join('\n');
             }
 
             if (honor.title && !honor.title.startsWith('Someone at')) {

@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import DOMPurify from 'dompurify';
 import CV from './components/CV.jsx';
 import EditableText from './components/EditableText.jsx';
@@ -19,6 +22,25 @@ function App() {
   const [draftData, setDraftData] = useState(null); // editable copy
   const [profileUrl, setProfileUrl] = useState('');
   const [hiddenSections, setHiddenSections] = useState([]); // track removed sections
+  const DEFAULT_SECTION_ORDER = ['summary','skills','experience','education','certifications','projects','volunteer','publications','honors','languages','patents'];
+  const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTION_ORDER);
+  const [showReorderSections, setShowReorderSections] = useState(false);
+
+  const getItemId = (section, index) => `${section}:${index}`;
+
+  const SortableRow = ({ id, children }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+    return (
+      <div ref={setNodeRef} className={`sortable-item${isDragging ? ' dragging' : ''}`} style={style}>
+        <span className="drag-handle" title="Drag to reorder" {...attributes} {...listeners}>⋮⋮</span>
+        {children}
+      </div>
+    );
+  };
 
   // Sanitize and format summary HTML while allowing basic formatting
   const sanitizeSummaryHtml = (htmlOrText) => {
@@ -234,6 +256,15 @@ function App() {
         skills: Array.isArray(linkedinData.skills) ? [...linkedinData.skills] : []
       };
       setDraftData(cloned);
+      // Initialize/merge section order on first data load
+      const available = DEFAULT_SECTION_ORDER.filter((id) => {
+        if (id === 'summary') return typeof linkedinData.about !== 'undefined';
+        return Array.isArray(linkedinData[id]);
+      });
+      setSectionOrder((prev) => {
+        const merged = [...prev.filter((s) => available.includes(s)), ...available.filter((s) => !prev.includes(s))];
+        return merged.length ? merged : available;
+      });
     } else {
       setDraftData(null);
     }
@@ -253,6 +284,40 @@ function App() {
       if (profileUrl) window.localStorage.setItem('profileUrl', profileUrl);
     } catch {}
   }, [profileUrl]);
+
+  // Reorder logic: sections and items
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over) return;
+    const a = active.id;
+    const b = over.id;
+    if (typeof a !== 'string' || typeof b !== 'string') return;
+    // Item drag: ids in format section:index
+    if (a.includes(':') && b.includes(':')) {
+      const [sa, ia] = a.split(':');
+      const [sb, ib] = b.split(':');
+      if (sa !== sb) return; // do not mix sections
+      const from = parseInt(ia, 10);
+      const to = parseInt(ib, 10);
+      // Move in visible list and rebuild underlying array
+      setDraftData((prev) => {
+        if (!prev) return prev;
+        const full = Array.isArray(prev[sa]) ? [...prev[sa]] : [];
+        const visible = Array.isArray(filteredForScreen?.[sa]) ? [...filteredForScreen[sa]] : [];
+        if (!visible.length) return prev;
+        const visibleIds = new Set(visible.map((item) => makeKey(sa, item)));
+        const hiddenItems = full.filter((item) => !visibleIds.has(makeKey(sa, item)));
+        const newVisible = arrayMove(visible, from, to);
+        return { ...prev, [sa]: [...newVisible, ...hiddenItems] };
+      });
+      return;
+    }
+    // Section drag: ids are section names
+    const fromIdx = sectionOrder.indexOf(a);
+    const toIdx = sectionOrder.indexOf(b);
+    if (fromIdx === -1 || toIdx === -1) return;
+    setSectionOrder((prev) => arrayMove(prev, fromIdx, toIdx));
+  };
 
   const isValidProfileUrl = (url) => {
     if (!url) return false;
@@ -729,734 +794,835 @@ function App() {
             </div>
           </div>
 
-          {/* Professional Summary */}
-          {typeof draftData.about !== 'undefined' && !isSectionHidden('summary') && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">Professional Summary</h2>
-                <button
-                  onClick={() => hideSection('summary')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <EditableText
-                tag="div"
-                className="about-text"
-                allowHtml
-                value={draftData.aboutHtml || draftData.about || ''}
-                placeholder="Add a short professional summary..."
-                onChange={(v) => setDraftData(prev => prev ? { ...prev, aboutHtml: v } : prev)}
-              />
+          {/* Drag-and-drop context wrapping interactive sections */}
+          <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            {/* Section reorder UI */}
+            <div className="cv-actions" style={{ marginBottom: 12 }}>
+              <button
+                onClick={() => setShowReorderSections((v) => !v)}
+                className="button-minimal"
+                title="Reorder sections visually"
+              >{showReorderSections ? '✅ Done Reordering Sections' : '↕️ Reorder Sections'}</button>
             </div>
-          )}
 
-          {/* SECTION 2: CORE SKILLS - Most Important for Recruiters */}
-          {filteredForScreen && filteredForScreen.skills && filteredForScreen.skills.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
-                <button
-                  onClick={() => hideSection('skills')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="skills-grid">
-                {filteredForScreen.skills.slice(0, 15).map((skill, i) => (
-                  <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
+            {showReorderSections && (
+              <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
+                <div className="section-order" style={{ marginBottom: 16 }}>
+                  {sectionOrder.map((secId) => (
+                    <SortableRow key={secId} id={secId}>
+                      <span className="section-chip">{secId}</span>
+                    </SortableRow>
+                  ))}
+                </div>
+              </SortableContext>
+            )}
+
+            {/* Build section elements and render in chosen order */}
+            {(() => {
+              const sectionElements = {};
+
+              // Summary
+              if (typeof draftData.about !== 'undefined' && !isSectionHidden('summary')) {
+                sectionElements.summary = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">Professional Summary</h2>
+                      <button
+                        onClick={() => hideSection('summary')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
                     <EditableText
-                      value={skill}
-                      onChange={(v) => {
-                        // find original index in draftData.skills and update
-                        const idx = draftData.skills.indexOf(skill);
-                        if (idx > -1) {
-                          setDraftData(prev => {
-                            const next = { ...prev, skills: [...(prev.skills || [])] };
-                            next.skills[idx] = v;
-                            return next;
-                          });
-                        }
-                      }}
+                      tag="div"
+                      className="about-text"
+                      allowHtml
+                      value={draftData.aboutHtml || draftData.about || ''}
+                      placeholder="Add a short professional summary..."
+                      onChange={(v) => setDraftData(prev => prev ? { ...prev, aboutHtml: v } : prev)}
                     />
-                    <button
-                      onClick={() => excludeItem('skills', skill)}
-                      title="Remove skill"
-                      style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
-                    >×</button>
-                  </span>
-                ))}
-              </div>
-              {filteredForScreen.skills.length > 15 && (
-                <details className="skills-expand">
-                  <summary className="skills-expand-btn">
-                    View all {filteredForScreen.skills.length} skills
-                  </summary>
-                  <div className="skills-grid" style={{ marginTop: 12 }}>
-                    {filteredForScreen.skills.slice(15).map((skill, i) => (
-                      <span key={i} className="skill-badge" style={{ position: 'relative' }}>
-                        <EditableText
-                          value={skill}
-                          onChange={(v) => {
-                            const idx = draftData.skills.indexOf(skill);
-                            if (idx > -1) {
-                              setDraftData(prev => {
-                                const next = { ...prev, skills: [...(prev.skills || [])] };
-                                next.skills[idx] = v;
-                                return next;
-                              });
-                            }
-                          }}
-                        />
-                        <button
-                          onClick={() => excludeItem('skills', skill)}
-                          title="Remove skill"
-                          style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
-                        >×</button>
-                      </span>
-                    ))}
                   </div>
-                </details>
-              )}
-            </div>
-          )}
+                );
+              }
 
-          {/* SECTION 3: PROFESSIONAL EXPERIENCE - Core Section */}
-          {filteredForScreen && filteredForScreen.experience && filteredForScreen.experience.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">💼 Professional Experience</h2>
-                <button
-                  onClick={() => hideSection('experience')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="experience-count">
-                {filteredForScreen.experience.length} positions
-              </div>
-              <div className="timeline">
-                {filteredForScreen.experience.map((exp, i) => (
-                  <div key={i} className="experience-item">
-                    <div className="timeline-marker"></div>
-                    <div className="experience-content">
-                      <h3 className="experience-title">
-                        <EditableText
-                          value={exp.title || ''}
-                          placeholder="Title"
-                          onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, title: v }))}
-                        />
-                      </h3>
-                      <div className="experience-company">
-                        <EditableText
-                          value={exp.company || ''}
-                          placeholder="Company"
-                          onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, company: v }))}
-                        />
-                      </div>
-                      <div className="experience-meta">
-                        {(() => {
-                          if (exp.from || exp.to) {
-                            return (
-                              <span className="experience-duration">
-                                <EditableText
-                                  className="inline-edit"
-                                  value={exp.from || ''}
-                                  placeholder="From"
-                                  onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, from: v }))}
-                                />
-                                {' – '}
-                                <EditableText
-                                  className="inline-edit"
-                                  value={exp.to || ''}
-                                  placeholder="To"
-                                  onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, to: v }))}
-                                />
-                              </span>
-                            );
-                          }
-                          const display = exp.dates || exp.duration || '';
-                          return display ? (
-                            <span className="experience-duration">
+              // Skills (with sorting by dragging badges)
+              if (filteredForScreen && filteredForScreen.skills && filteredForScreen.skills.length > 0 && !isSectionHidden('skills')) {
+                sectionElements.skills = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
+                      <button
+                        onClick={() => hideSection('skills')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
+                    <SortableContext items={filteredForScreen.skills.map((_, i) => getItemId('skills', i))} strategy={verticalListSortingStrategy}>
+                      <div className="skills-grid">
+                        {filteredForScreen.skills.slice(0, 15).map((skill, i) => (
+                          <SortableRow key={getItemId('skills', i)} id={getItemId('skills', i)}>
+                            <span className="skill-badge skill-primary" style={{ position: 'relative', width: '100%' }}>
                               <EditableText
-                                value={display}
-                                placeholder="Dates"
-                                onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, dates: v }))}
+                                value={skill}
+                                onChange={(v) => {
+                                  const idx = draftData.skills.indexOf(skill);
+                                  if (idx > -1) {
+                                    setDraftData(prev => {
+                                      const next = { ...prev, skills: [...(prev.skills || [])] };
+                                      next.skills[idx] = v;
+                                      return next;
+                                    });
+                                  }
+                                }}
                               />
+                              <button
+                                onClick={() => excludeItem('skills', skill)}
+                                title="Remove skill"
+                                style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
+                              >×</button>
                             </span>
-                          ) : null;
-                        })()}
-                        {typeof exp.location !== 'undefined' && (
-                          <span className="experience-location">•
-                            <EditableText
-                              className="inline-edit"
-                              value={exp.location || ''}
-                              placeholder="Location"
-                              onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, location: v }))}
-                            />
-                          </span>
-                        )}
+                          </SortableRow>
+                        ))}
                       </div>
-                      {typeof exp.description !== 'undefined' && (
-                        <div className="experience-description">
-                          <EditableText
-                            tag="div"
-                            value={exp.description || ''}
-                            placeholder="What did you do?"
-                            onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, description: v }))}
-                          />
-                        </div>
+                      {filteredForScreen.skills.length > 15 && (
+                        <details className="skills-expand">
+                          <summary className="skills-expand-btn">
+                            View all {filteredForScreen.skills.length} skills
+                          </summary>
+                          <div className="skills-grid" style={{ marginTop: 12 }}>
+                            {filteredForScreen.skills.slice(15).map((skill, i) => (
+                              <SortableRow key={getItemId('skills', 15 + i)} id={getItemId('skills', 15 + i)}>
+                                <span className="skill-badge" style={{ position: 'relative', width: '100%' }}>
+                                  <EditableText
+                                    value={skill}
+                                    onChange={(v) => {
+                                      const idx = draftData.skills.indexOf(skill);
+                                      if (idx > -1) {
+                                        setDraftData(prev => {
+                                          const next = { ...prev, skills: [...(prev.skills || [])] };
+                                          next.skills[idx] = v;
+                                          return next;
+                                        });
+                                      }
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => excludeItem('skills', skill)}
+                                    title="Remove skill"
+                                    style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
+                                  >×</button>
+                                </span>
+                              </SortableRow>
+                            ))}
+                          </div>
+                        </details>
                       )}
-                      {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
-                        <div className="experience-skills">
-                          {exp.contextual_skills.map((s, idx) => (
-                            <span key={idx} className="skill-badge">{s}</span>
-                          ))}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => excludeItem('experience', exp)}
-                          className="button"
-                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Remove this experience"
-                        >Remove</button>
-                      </div>
-                    </div>
+                    </SortableContext>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                );
+              }
 
-          {/* SECTION 4: EDUCATION */}
-          {filteredForScreen && filteredForScreen.education && filteredForScreen.education.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">🎓 Education</h2>
-                <button
-                  onClick={() => hideSection('education')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="education-list">
-                {filteredForScreen.education.map((edu, i) => (
-                  <div key={i} className="education-item">
-                    <h3 className="education-school">
-                      <EditableText
-                        value={edu.school || ''}
-                        placeholder="School"
-                        onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, school: v }))}
-                      />
-                    </h3>
-                    <div className="education-degree">
-                      <EditableText
-                        value={edu.degree || ''}
-                        placeholder="Degree"
-                        onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, degree: v }))}
-                      />
-                      {" "}
-                      {typeof edu.field !== 'undefined' && (
-                        <>
-                          {"• "}
-                          <EditableText
-                            value={edu.field || ''}
-                            placeholder="Field"
-                            onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, field: v }))}
-                          />
-                        </>
-                      )}
-                    </div>
-                    <div className="education-duration">
-                      <EditableText
-                        value={edu.duration || ''}
-                        placeholder="Duration"
-                        onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, duration: v }))}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              // Experience (sortable)
+              if (filteredForScreen && filteredForScreen.experience && filteredForScreen.experience.length > 0 && !isSectionHidden('experience')) {
+                sectionElements.experience = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">💼 Professional Experience</h2>
                       <button
-                        onClick={() => excludeItem('education', edu)}
+                        onClick={() => hideSection('experience')}
                         className="button"
                         style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                        title="Remove this education"
-                      >Remove</button>
+                        title="Remove this section"
+                      >Remove section</button>
                     </div>
+                    <div className="experience-count">
+                      {filteredForScreen.experience.length} positions
+                    </div>
+                    <SortableContext items={filteredForScreen.experience.map((_, i) => getItemId('experience', i))} strategy={verticalListSortingStrategy}>
+                      <div className="timeline">
+                        {filteredForScreen.experience.map((exp, i) => (
+                          <SortableRow key={getItemId('experience', i)} id={getItemId('experience', i)}>
+                            <div className="experience-item">
+                              <div className="timeline-marker"></div>
+                              <div className="experience-content">
+                                <h3 className="experience-title">
+                                  <EditableText
+                                    value={exp.title || ''}
+                                    placeholder="Title"
+                                    onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, title: v }))}
+                                  />
+                                </h3>
+                                <div className="experience-company">
+                                  <EditableText
+                                    value={exp.company || ''}
+                                    placeholder="Company"
+                                    onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, company: v }))}
+                                  />
+                                </div>
+                                <div className="experience-meta">
+                                  {(() => {
+                                    if (exp.from || exp.to) {
+                                      return (
+                                        <span className="experience-duration">
+                                          <EditableText
+                                            className="inline-edit"
+                                            value={exp.from || ''}
+                                            placeholder="From"
+                                            onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, from: v }))}
+                                          />
+                                          {' – '}
+                                          <EditableText
+                                            className="inline-edit"
+                                            value={exp.to || ''}
+                                            placeholder="To"
+                                            onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, to: v }))}
+                                          />
+                                        </span>
+                                      );
+                                    }
+                                    const display = exp.dates || exp.duration || '';
+                                    return display ? (
+                                      <span className="experience-duration">
+                                        <EditableText
+                                          value={display}
+                                          placeholder="Dates"
+                                          onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, dates: v }))}
+                                        />
+                                      </span>
+                                    ) : null;
+                                  })()}
+                                  {typeof exp.location !== 'undefined' && (
+                                    <span className="experience-location">•
+                                      <EditableText
+                                        className="inline-edit"
+                                        value={exp.location || ''}
+                                        placeholder="Location"
+                                        onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, location: v }))}
+                                      />
+                                    </span>
+                                  )}
+                                </div>
+                                {typeof exp.description !== 'undefined' && (
+                                  <div className="experience-description">
+                                    <EditableText
+                                      tag="div"
+                                      value={exp.description || ''}
+                                      placeholder="What did you do?"
+                                      onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, description: v }))}
+                                    />
+                                  </div>
+                                )}
+                                {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
+                                  <div className="experience-skills">
+                                    {exp.contextual_skills.map((s, idx) => (
+                                      <span key={idx} className="skill-badge">{s}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <button
+                                    onClick={() => excludeItem('experience', exp)}
+                                    className="button"
+                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    title="Remove this experience"
+                                  >Remove</button>
+                                </div>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                );
+              }
 
-          {/* SECTION 5: CERTIFICATIONS & CREDENTIALS */}
-          {filteredForScreen && filteredForScreen.certifications && filteredForScreen.certifications.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">📜 Certifications & Credentials</h2>
-                <button
-                  onClick={() => hideSection('certifications')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="certifications-grid">
-                {filteredForScreen.certifications.map((cert, i) => (
-                  <div key={i} className="certification-item">
-                    <div className="certification-name">
-                      <EditableText
-                        value={cert.name || ''}
-                        placeholder="Certification"
-                        onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, name: v }))}
-                      />
-                    </div>
-                    <div className="certification-issuer">
-                      <EditableText
-                        value={cert.issuer || ''}
-                        placeholder="Issuer"
-                        onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, issuer: v }))}
-                      />
-                    </div>
-                    <div className="certification-date">
-                      <EditableText
-                        value={cert.date || ''}
-                        placeholder="Date"
-                        onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, date: v }))}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+              // Education (sortable)
+              if (filteredForScreen && filteredForScreen.education && filteredForScreen.education.length > 0 && !isSectionHidden('education')) {
+                sectionElements.education = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">🎓 Education</h2>
                       <button
-                        onClick={() => excludeItem('certifications', cert)}
+                        onClick={() => hideSection('education')}
                         className="button"
                         style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                        title="Remove this certification"
-                      >Remove</button>
+                        title="Remove this section"
+                      >Remove section</button>
                     </div>
+                    <SortableContext items={filteredForScreen.education.map((_, i) => getItemId('education', i))} strategy={verticalListSortingStrategy}>
+                      <div className="education-list">
+                        {filteredForScreen.education.map((edu, i) => (
+                          <SortableRow key={getItemId('education', i)} id={getItemId('education', i)}>
+                            <div className="education-item">
+                              <h3 className="education-school">
+                                <EditableText
+                                  value={edu.school || ''}
+                                  placeholder="School"
+                                  onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, school: v }))}
+                                />
+                              </h3>
+                              <div className="education-degree">
+                                <EditableText
+                                  value={edu.degree || ''}
+                                  placeholder="Degree"
+                                  onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, degree: v }))}
+                                />
+                                {" "}
+                                {typeof edu.field !== 'undefined' && (
+                                  <>
+                                    {"• "}
+                                    <EditableText
+                                      value={edu.field || ''}
+                                      placeholder="Field"
+                                      onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, field: v }))}
+                                    />
+                                  </>
+                                )}
+                              </div>
+                              <div className="education-duration">
+                                <EditableText
+                                  value={edu.duration || ''}
+                                  placeholder="Duration"
+                                  onChange={(v) => updateArrayItem('education', edu, (it) => ({ ...it, duration: v }))}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                <button
+                                  onClick={() => excludeItem('education', edu)}
+                                  className="button"
+                                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                  title="Remove this education"
+                                >Remove</button>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                );
+              }
 
-          {/* SECTION 6: PROJECTS */}
-          {filteredForScreen && filteredForScreen.projects && filteredForScreen.projects.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">🚀 Projects</h2>
-                <button
-                  onClick={() => hideSection('projects')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="timeline">
-                {filteredForScreen.projects.map((proj, i) => (
-                  <div key={i} className="experience-item">
-                    <div className="timeline-marker"></div>
-                    <div className="experience-content">
-                      <h3 className="experience-title">
-                        <EditableText
-                          value={proj.title || ''}
-                          placeholder="Project Title"
-                          onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, title: v }))}
-                        />
-                        {proj.url && (
-                          <span style={{ marginLeft: 6 }}>
-                            <a href={proj.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
-                          </span>
-                        )}
-                      </h3>
-                      <div className="experience-meta">
-                        <span className="experience-duration">
-                          <EditableText
-                            value={proj.date || ''}
-                            placeholder="Date"
-                            onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, date: v }))}
-                          />
-                        </span>
-                      </div>
-                      {typeof proj.description !== 'undefined' && (
-                        <div className="experience-description">
-                          <EditableText
-                            tag="div"
-                            value={proj.description || ''}
-                            placeholder="Project details..."
-                            onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, description: v }))}
-                          />
-                        </div>
-                      )}
-                      {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
-                        <div className="experience-skills">
-                          {proj.contextual_skills.map((s, idx) => (
-                            <span key={idx} className="skill-badge">{s}</span>
-                          ))}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => excludeItem('projects', proj)}
-                          className="button"
-                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Remove this project"
-                        >Remove</button>
-                      </div>
+              // Certifications (sortable)
+              if (filteredForScreen && filteredForScreen.certifications && filteredForScreen.certifications.length > 0 && !isSectionHidden('certifications')) {
+                sectionElements.certifications = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">📜 Certifications & Credentials</h2>
+                      <button
+                        onClick={() => hideSection('certifications')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* SECTION 7: VOLUNTEERING */}
-          {filteredForScreen && filteredForScreen.volunteer && filteredForScreen.volunteer.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">❤️ Volunteering</h2>
-                <button
-                  onClick={() => hideSection('volunteer')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="timeline">
-                {filteredForScreen.volunteer.map((vol, i) => (
-                  <div key={i} className="experience-item">
-                    <div className="timeline-marker"></div>
-                    <div className="experience-content">
-                      <h3 className="experience-title">
-                        <EditableText
-                          value={vol.role || ''}
-                          placeholder="Role"
-                          onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, role: v }))}
-                        />
-                      </h3>
-                      <div className="experience-company">
-                        <EditableText
-                          value={vol.organization || ''}
-                          placeholder="Organization"
-                          onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, organization: v }))}
-                        />
+                    <SortableContext items={filteredForScreen.certifications.map((_, i) => getItemId('certifications', i))} strategy={verticalListSortingStrategy}>
+                      <div className="certifications-grid">
+                        {filteredForScreen.certifications.map((cert, i) => (
+                          <SortableRow key={getItemId('certifications', i)} id={getItemId('certifications', i)}>
+                            <div className="certification-item">
+                              <div className="certification-name">
+                                <EditableText
+                                  value={cert.name || ''}
+                                  placeholder="Certification"
+                                  onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, name: v }))}
+                                />
+                              </div>
+                              <div className="certification-issuer">
+                                <EditableText
+                                  value={cert.issuer || ''}
+                                  placeholder="Issuer"
+                                  onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, issuer: v }))}
+                                />
+                              </div>
+                              <div className="certification-date">
+                                <EditableText
+                                  value={cert.date || ''}
+                                  placeholder="Date"
+                                  onChange={(v) => updateArrayItem('certifications', cert, (it) => ({ ...it, date: v }))}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                <button
+                                  onClick={() => excludeItem('certifications', cert)}
+                                  className="button"
+                                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                  title="Remove this certification"
+                                >Remove</button>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
                       </div>
-                      <div className="experience-meta">
-                        <span className="experience-duration">
-                          <EditableText
-                            value={vol.date || ''}
-                            placeholder="Date"
-                            onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, date: v }))}
-                          />
-                          {" "}
-                          {typeof vol.duration !== 'undefined' && (
-                            <>
-                              {"• "}
+                    </SortableContext>
+                  </div>
+                );
+              }
+
+              // Projects (sortable)
+              if (filteredForScreen && filteredForScreen.projects && filteredForScreen.projects.length > 0 && !isSectionHidden('projects')) {
+                sectionElements.projects = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">🚀 Projects</h2>
+                      <button
+                        onClick={() => hideSection('projects')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
+                    <SortableContext items={filteredForScreen.projects.map((_, i) => getItemId('projects', i))} strategy={verticalListSortingStrategy}>
+                      <div className="timeline">
+                        {filteredForScreen.projects.map((proj, i) => (
+                          <SortableRow key={getItemId('projects', i)} id={getItemId('projects', i)}>
+                            <div className="experience-item">
+                              <div className="timeline-marker"></div>
+                              <div className="experience-content">
+                                <h3 className="experience-title">
+                                  <EditableText
+                                    value={proj.title || ''}
+                                    placeholder="Project Title"
+                                    onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, title: v }))}
+                                  />
+                                  {proj.url && (
+                                    <span style={{ marginLeft: 6 }}>
+                                      <a href={proj.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
+                                    </span>
+                                  )}
+                                </h3>
+                                <div className="experience-meta">
+                                  <span className="experience-duration">
+                                    <EditableText
+                                      value={proj.date || ''}
+                                      placeholder="Date"
+                                      onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, date: v }))}
+                                    />
+                                  </span>
+                                </div>
+                                {typeof proj.description !== 'undefined' && (
+                                  <div className="experience-description">
+                                    <EditableText
+                                      tag="div"
+                                      value={proj.description || ''}
+                                      placeholder="Project details..."
+                                      onChange={(v) => updateArrayItem('projects', proj, (it) => ({ ...it, description: v }))}
+                                    />
+                                  </div>
+                                )}
+                                {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
+                                  <div className="experience-skills">
+                                    {proj.contextual_skills.map((s, idx) => (
+                                      <span key={idx} className="skill-badge">{s}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <button
+                                    onClick={() => excludeItem('projects', proj)}
+                                    className="button"
+                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    title="Remove this project"
+                                  >Remove</button>
+                                </div>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </div>
+                );
+              }
+
+              // Volunteer (sortable)
+              if (filteredForScreen && filteredForScreen.volunteer && filteredForScreen.volunteer.length > 0 && !isSectionHidden('volunteer')) {
+                sectionElements.volunteer = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">❤️ Volunteering</h2>
+                      <button
+                        onClick={() => hideSection('volunteer')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
+                    <SortableContext items={filteredForScreen.volunteer.map((_, i) => getItemId('volunteer', i))} strategy={verticalListSortingStrategy}>
+                      <div className="timeline">
+                        {filteredForScreen.volunteer.map((vol, i) => (
+                          <SortableRow key={getItemId('volunteer', i)} id={getItemId('volunteer', i)}>
+                            <div className="experience-item">
+                              <div className="timeline-marker"></div>
+                              <div className="experience-content">
+                                <h3 className="experience-title">
+                                  <EditableText
+                                    value={vol.role || ''}
+                                    placeholder="Role"
+                                    onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, role: v }))}
+                                  />
+                                </h3>
+                                <div className="experience-company">
+                                  <EditableText
+                                    value={vol.organization || ''}
+                                    placeholder="Organization"
+                                    onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, organization: v }))}
+                                  />
+                                </div>
+                                <div className="experience-meta">
+                                  <span className="experience-duration">
+                                    <EditableText
+                                      value={vol.date || ''}
+                                      placeholder="Date"
+                                      onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, date: v }))}
+                                    />
+                                    {" "}
+                                    {typeof vol.duration !== 'undefined' && (
+                                      <>
+                                        {"• "}
+                                        <EditableText
+                                          value={vol.duration || ''}
+                                          placeholder="Duration"
+                                          onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, duration: v }))}
+                                        />
+                                      </>
+                                    )}
+                                  </span>
+                                  {typeof vol.cause !== 'undefined' && (
+                                    <span className="experience-location">•
+                                      <EditableText
+                                        className="inline-edit"
+                                        value={vol.cause || ''}
+                                        placeholder="Cause"
+                                        onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, cause: v }))}
+                                      />
+                                    </span>
+                                  )}
+                                </div>
+                                {typeof vol.description !== 'undefined' && (
+                                  <div className="experience-description">
+                                    <EditableText
+                                      tag="div"
+                                      value={vol.description || ''}
+                                      placeholder="What did you do?"
+                                      onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, description: v }))}
+                                    />
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <button
+                                    onClick={() => excludeItem('volunteer', vol)}
+                                    className="button"
+                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    title="Remove this volunteering item"
+                                  >Remove</button>
+                                </div>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </div>
+                );
+              }
+
+              // Publications (sortable)
+              if (filteredForScreen && filteredForScreen.publications && filteredForScreen.publications.length > 0 && !isSectionHidden('publications')) {
+                sectionElements.publications = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">📚 Publications</h2>
+                      <button
+                        onClick={() => hideSection('publications')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
+                    <SortableContext items={filteredForScreen.publications.map((_, i) => getItemId('publications', i))} strategy={verticalListSortingStrategy}>
+                      <div className="timeline">
+                        {filteredForScreen.publications.map((pub, i) => (
+                          <SortableRow key={getItemId('publications', i)} id={getItemId('publications', i)}>
+                            <div className="experience-item">
+                              <div className="timeline-marker"></div>
+                              <div className="experience-content">
+                                <h3 className="experience-title">
+                                  <EditableText
+                                    value={pub.title || ''}
+                                    placeholder="Title"
+                                    onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, title: v }))}
+                                  />
+                                  {pub.url && (
+                                    <span style={{ marginLeft: 6 }}>
+                                      <a href={pub.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
+                                    </span>
+                                  )}
+                                </h3>
+                                <div className="experience-company">
+                                  <EditableText
+                                    value={pub.publisher || ''}
+                                    placeholder="Publisher"
+                                    onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, publisher: v }))}
+                                  />
+                                </div>
+                                <div className="experience-meta">
+                                  <span className="experience-duration">
+                                    <EditableText
+                                      value={pub.date || ''}
+                                      placeholder="Date"
+                                      onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, date: v }))}
+                                    />
+                                  </span>
+                                </div>
+                                {typeof pub.description !== 'undefined' && (
+                                  <div className="experience-description">
+                                    <EditableText
+                                      tag="div"
+                                      value={pub.description || ''}
+                                      placeholder="Summary..."
+                                      onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, description: v }))}
+                                    />
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <button
+                                    onClick={() => excludeItem('publications', pub)}
+                                    className="button"
+                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    title="Remove this publication"
+                                  >Remove</button>
+                                </div>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </div>
+                );
+              }
+
+              // Honors (sortable)
+              if (filteredForScreen && filteredForScreen.honors && filteredForScreen.honors.length > 0 && !isSectionHidden('honors')) {
+                sectionElements.honors = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">🏆 Honors & Awards</h2>
+                      <button
+                        onClick={() => hideSection('honors')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
+                    <SortableContext items={filteredForScreen.honors.map((_, i) => getItemId('honors', i))} strategy={verticalListSortingStrategy}>
+                      <div className="timeline">
+                        {filteredForScreen.honors.map((honor, i) => (
+                          <SortableRow key={getItemId('honors', i)} id={getItemId('honors', i)}>
+                            <div className="experience-item">
+                              <div className="timeline-marker"></div>
+                              <div className="experience-content">
+                                <h3 className="experience-title">
+                                  <EditableText
+                                    value={honor.title || ''}
+                                    placeholder="Award Title"
+                                    onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, title: v }))}
+                                  />
+                                </h3>
+                                <div className="experience-company">
+                                  <EditableText
+                                    value={honor.issuer || ''}
+                                    placeholder="Issuer"
+                                    onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, issuer: v }))}
+                                  />
+                                </div>
+                                <div className="experience-meta">
+                                  <span className="experience-duration">
+                                    <EditableText
+                                      value={honor.date || ''}
+                                      placeholder="Date"
+                                      onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, date: v }))}
+                                    />
+                                  </span>
+                                </div>
+                                {typeof honor.description !== 'undefined' && (
+                                  <div className="experience-description">
+                                    <EditableText
+                                      tag="div"
+                                      value={honor.description || ''}
+                                      placeholder="Details..."
+                                      onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, description: v }))}
+                                    />
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <button
+                                    onClick={() => excludeItem('honors', honor)}
+                                    className="button"
+                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    title="Remove this honor"
+                                  >Remove</button>
+                                </div>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
+                  </div>
+                );
+              }
+
+              // Languages (sortable)
+              if (filteredForScreen && filteredForScreen.languages && filteredForScreen.languages.length > 0 && !isSectionHidden('languages')) {
+                sectionElements.languages = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">🌐 Languages</h2>
+                      <button
+                        onClick={() => hideSection('languages')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
+                    </div>
+                    <SortableContext items={filteredForScreen.languages.map((_, i) => getItemId('languages', i))} strategy={verticalListSortingStrategy}>
+                      <div className="skills-grid">
+                        {filteredForScreen.languages.map((language, i) => (
+                          <SortableRow key={getItemId('languages', i)} id={getItemId('languages', i)}>
+                            <span className="skill-badge skill-primary" style={{ position: 'relative', width: '100%' }}>
                               <EditableText
-                                value={vol.duration || ''}
-                                placeholder="Duration"
-                                onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, duration: v }))}
+                                value={language}
+                                onChange={(v) => {
+                                  const idx = draftData.languages.indexOf(language);
+                                  if (idx > -1) {
+                                    setDraftData(prev => {
+                                      const next = { ...prev, languages: [...(prev.languages || [])] };
+                                      next.languages[idx] = v;
+                                      return next;
+                                    });
+                                  }
+                                }}
                               />
-                            </>
-                          )}
-                        </span>
-                        {typeof vol.cause !== 'undefined' && (
-                          <span className="experience-location">•
-                            <EditableText
-                              className="inline-edit"
-                              value={vol.cause || ''}
-                              placeholder="Cause"
-                              onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, cause: v }))}
-                            />
-                          </span>
-                        )}
+                              <button
+                                onClick={() => excludeItem('languages', language)}
+                                title="Remove language"
+                                style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
+                              >×</button>
+                            </span>
+                          </SortableRow>
+                        ))}
                       </div>
-                      {typeof vol.description !== 'undefined' && (
-                        <div className="experience-description">
-                          <EditableText
-                            tag="div"
-                            value={vol.description || ''}
-                            placeholder="What did you do?"
-                            onChange={(v) => updateArrayItem('volunteer', vol, (it) => ({ ...it, description: v }))}
-                          />
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => excludeItem('volunteer', vol)}
-                          className="button"
-                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Remove this volunteering item"
-                        >Remove</button>
-                      </div>
-                    </div>
+                    </SortableContext>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                );
+              }
 
-          {/* SECTION 8: PUBLICATIONS */}
-          {filteredForScreen && filteredForScreen.publications && filteredForScreen.publications.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">📚 Publications</h2>
-                <button
-                  onClick={() => hideSection('publications')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="timeline">
-                {filteredForScreen.publications.map((pub, i) => (
-                  <div key={i} className="experience-item">
-                    <div className="timeline-marker"></div>
-                    <div className="experience-content">
-                      <h3 className="experience-title">
-                        <EditableText
-                          value={pub.title || ''}
-                          placeholder="Title"
-                          onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, title: v }))}
-                        />
-                        {pub.url && (
-                          <span style={{ marginLeft: 6 }}>
-                            <a href={pub.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
-                          </span>
-                        )}
-                      </h3>
-                      <div className="experience-company">
-                        <EditableText
-                          value={pub.publisher || ''}
-                          placeholder="Publisher"
-                          onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, publisher: v }))}
-                        />
-                      </div>
-                      <div className="experience-meta">
-                        <span className="experience-duration">
-                          <EditableText
-                            value={pub.date || ''}
-                            placeholder="Date"
-                            onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, date: v }))}
-                          />
-                        </span>
-                      </div>
-                      {typeof pub.description !== 'undefined' && (
-                        <div className="experience-description">
-                          <EditableText
-                            tag="div"
-                            value={pub.description || ''}
-                            placeholder="Summary..."
-                            onChange={(v) => updateArrayItem('publications', pub, (it) => ({ ...it, description: v }))}
-                          />
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => excludeItem('publications', pub)}
-                          className="button"
-                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Remove this publication"
-                        >Remove</button>
-                      </div>
+              // Patents (sortable)
+              if (filteredForScreen && filteredForScreen.patents && filteredForScreen.patents.length > 0 && !isSectionHidden('patents')) {
+                sectionElements.patents = (
+                  <div className="section">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <h2 className="section-title">💡 Patents</h2>
+                      <button
+                        onClick={() => hideSection('patents')}
+                        className="button"
+                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        title="Remove this section"
+                      >Remove section</button>
                     </div>
+                    <SortableContext items={filteredForScreen.patents.map((_, i) => getItemId('patents', i))} strategy={verticalListSortingStrategy}>
+                      <div className="timeline">
+                        {filteredForScreen.patents.map((patent, i) => (
+                          <SortableRow key={getItemId('patents', i)} id={getItemId('patents', i)}>
+                            <div className="experience-item">
+                              <div className="timeline-marker"></div>
+                              <div className="experience-content">
+                                <h3 className="experience-title">
+                                  <EditableText
+                                    value={patent.title || ''}
+                                    placeholder="Patent Title"
+                                    onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, title: v }))}
+                                  />
+                                  {patent.url && (
+                                    <span style={{ marginLeft: 6 }}>
+                                      <a href={patent.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
+                                    </span>
+                                  )}
+                                </h3>
+                                {patent.number && (
+                                  <div className="experience-company">Patent Number: {" "}
+                                    <EditableText
+                                      className="inline-edit"
+                                      value={patent.number || ''}
+                                      placeholder="Number"
+                                      onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, number: v }))}
+                                    />
+                                  </div>
+                                )}
+                                <div className="experience-meta">
+                                  {typeof patent.issuer !== 'undefined' && (
+                                    <span className="experience-company">
+                                      <EditableText
+                                        value={patent.issuer || ''}
+                                        placeholder="Issuer"
+                                        onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, issuer: v }))}
+                                      />
+                                    </span>
+                                  )}
+                                  {typeof patent.date !== 'undefined' && (
+                                    <span className="experience-duration">•
+                                      <EditableText
+                                        className="inline-edit"
+                                        value={patent.date || ''}
+                                        placeholder="Date"
+                                        onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, date: v }))}
+                                      />
+                                    </span>
+                                  )}
+                                </div>
+                                {typeof patent.description !== 'undefined' && (
+                                  <div className="experience-description">
+                                    <EditableText
+                                      tag="div"
+                                      value={patent.description || ''}
+                                      placeholder="Details..."
+                                      onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, description: v }))}
+                                    />
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                                  <button
+                                    onClick={() => excludeItem('patents', patent)}
+                                    className="button"
+                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    title="Remove this patent"
+                                  >Remove</button>
+                                </div>
+                              </div>
+                            </div>
+                          </SortableRow>
+                        ))}
+                      </div>
+                    </SortableContext>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                );
+              }
 
-          {/* SECTION 9: HONORS & AWARDS */}
-          {filteredForScreen && filteredForScreen.honors && filteredForScreen.honors.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">🏆 Honors & Awards</h2>
-                <button
-                  onClick={() => hideSection('honors')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="timeline">
-                {filteredForScreen.honors.map((honor, i) => (
-                  <div key={i} className="experience-item">
-                    <div className="timeline-marker"></div>
-                    <div className="experience-content">
-                      <h3 className="experience-title">
-                        <EditableText
-                          value={honor.title || ''}
-                          placeholder="Award Title"
-                          onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, title: v }))}
-                        />
-                      </h3>
-                      <div className="experience-company">
-                        <EditableText
-                          value={honor.issuer || ''}
-                          placeholder="Issuer"
-                          onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, issuer: v }))}
-                        />
-                      </div>
-                      <div className="experience-meta">
-                        <span className="experience-duration">
-                          <EditableText
-                            value={honor.date || ''}
-                            placeholder="Date"
-                            onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, date: v }))}
-                          />
-                        </span>
-                      </div>
-                      {typeof honor.description !== 'undefined' && (
-                        <div className="experience-description">
-                          <EditableText
-                            tag="div"
-                            value={honor.description || ''}
-                            placeholder="Details..."
-                            onChange={(v) => updateArrayItem('honors', honor, (it) => ({ ...it, description: v }))}
-                          />
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => excludeItem('honors', honor)}
-                          className="button"
-                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Remove this honor"
-                        >Remove</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+              // Render in chosen order
+              return (
+                <div>
+                  {sectionOrder.map((id) => sectionElements[id]).filter(Boolean)}
+                </div>
+              );
+            })()}
 
-          {/* SECTION 10: LANGUAGES */}
-          {filteredForScreen && filteredForScreen.languages && filteredForScreen.languages.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">🌐 Languages</h2>
-                <button
-                  onClick={() => hideSection('languages')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="skills-grid">
-                {filteredForScreen.languages.map((language, i) => (
-                  <span key={i} className="skill-badge skill-primary" style={{ position: 'relative' }}>
-                    <EditableText
-                      value={language}
-                      onChange={(v) => {
-                        const idx = draftData.languages.indexOf(language);
-                        if (idx > -1) {
-                          setDraftData(prev => {
-                            const next = { ...prev, languages: [...(prev.languages || [])] };
-                            next.languages[idx] = v;
-                            return next;
-                          });
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => excludeItem('languages', language)}
-                      title="Remove language"
-                      style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
-                    >×</button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          </DndContext>
 
-          {/* SECTION 11: PATENTS */}
-          {filteredForScreen && filteredForScreen.patents && filteredForScreen.patents.length > 0 && (
-            <div className="section">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 className="section-title">💡 Patents</h2>
-                <button
-                  onClick={() => hideSection('patents')}
-                  className="button"
-                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                  title="Remove this section"
-                >Remove section</button>
-              </div>
-              <div className="timeline">
-                {filteredForScreen.patents.map((patent, i) => (
-                  <div key={i} className="experience-item">
-                    <div className="timeline-marker"></div>
-                    <div className="experience-content">
-                      <h3 className="experience-title">
-                        <EditableText
-                          value={patent.title || ''}
-                          placeholder="Patent Title"
-                          onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, title: v }))}
-                        />
-                        {patent.url && (
-                          <span style={{ marginLeft: 6 }}>
-                            <a href={patent.url} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none' }}>🔗</a>
-                          </span>
-                        )}
-                      </h3>
-                      {patent.number && (
-                        <div className="experience-company">Patent Number: {" "}
-                          <EditableText
-                            className="inline-edit"
-                            value={patent.number || ''}
-                            placeholder="Number"
-                            onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, number: v }))}
-                          />
-                        </div>
-                      )}
-                      <div className="experience-meta">
-                        {typeof patent.issuer !== 'undefined' && (
-                          <span className="experience-company">
-                            <EditableText
-                              value={patent.issuer || ''}
-                              placeholder="Issuer"
-                              onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, issuer: v }))}
-                            />
-                          </span>
-                        )}
-                        {typeof patent.date !== 'undefined' && (
-                          <span className="experience-duration">•
-                            <EditableText
-                              className="inline-edit"
-                              value={patent.date || ''}
-                              placeholder="Date"
-                              onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, date: v }))}
-                            />
-                          </span>
-                        )}
-                      </div>
-                      {typeof patent.description !== 'undefined' && (
-                        <div className="experience-description">
-                          <EditableText
-                            tag="div"
-                            value={patent.description || ''}
-                            placeholder="Details..."
-                            onChange={(v) => updateArrayItem('patents', patent, (it) => ({ ...it, description: v }))}
-                          />
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => excludeItem('patents', patent)}
-                          className="button"
-                          style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
-                          title="Remove this patent"
-                        >Remove</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {DEBUG && (
             <div style={{ marginTop: 16 }}>

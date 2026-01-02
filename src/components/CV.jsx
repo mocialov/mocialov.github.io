@@ -23,9 +23,13 @@ function isLikelyList(text) {
 
 function sanitizeParagraph(text) {
   if (!text) return '';
-  const raw = String(text).replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
+  const t = String(text);
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(t) || t.includes('<br');
+  const raw = looksLikeHtml ? t : t.replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
   return DOMPurify.sanitize(raw, {
-    ALLOWED_TAGS: ['b','strong','i','em','u','br','p','span'],
+    ALLOWED_TAGS: [
+      'b','strong','i','em','u','br','p','span','ul','ol','li','pre','code','blockquote'
+    ],
     ALLOWED_ATTR: [],
     FORBID_TAGS: ['a']
   });

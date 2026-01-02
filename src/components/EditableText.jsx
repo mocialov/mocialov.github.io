@@ -11,7 +11,23 @@ export default function EditableText({
 }) {
   const ref = useRef(null);
   const Tag = tag;
-  const sanitized = allowHtml ? DOMPurify.sanitize(value || '') : (value || '');
+  const escapeHtml = (str) => String(str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[c]);
+  // Normalize incoming text for consistent newline rendering in plain mode
+  const sanitized = (() => {
+    if (allowHtml) {
+      const v = String(value || '');
+      const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(v) || v.includes('<br');
+      const normalized = looksLikeHtml
+        ? v
+        : v.replace(/\r\n?/g, '\n').replace(/\n/g, '<br>');
+      return DOMPurify.sanitize(normalized);
+    }
+    return String(value || '')
+      .replace(/<br\s*\/?>(\n)?/gi, '\n')
+      .replace(/\r\n?/g, '\n');
+  })();
 
   const handleBlur = (e) => {
     const el = ref.current;
@@ -19,7 +35,7 @@ export default function EditableText({
     let newVal = allowHtml ? el.innerHTML : el.innerText;
     // Normalize line breaks for plain text mode
     if (!allowHtml) {
-      newVal = newVal.replace(/\r\n/g, '\n');
+      newVal = newVal.replace(/\r\n?/g, '\n');
     }
     if (onChange) onChange(newVal);
   };
@@ -42,9 +58,11 @@ export default function EditableText({
       onKeyDown={handleKeyDown}
       data-placeholder={placeholder}
       style={{ outline: 'none' }}
-      dangerouslySetInnerHTML={allowHtml ? { __html: sanitized || '' } : undefined}
+      dangerouslySetInnerHTML={allowHtml
+        ? { __html: sanitized || '' }
+        : { __html: escapeHtml(sanitized || '').replace(/\n/g, '<br>') }}
     >
-      {!allowHtml ? (sanitized || '') : null}
+      {null}
     </Tag>
   );
 }

@@ -472,10 +472,16 @@ details summary:hover {
   white-space: pre-wrap;
 }
 
+/* Ensure contentEditable preserves whitespace */
+[contenteditable] {
+  white-space: pre-wrap;
+}
+
 /* Inline contentEditable helpers */
 .inline-edit {
   display: inline-block;
   min-width: 1ch;
+  white-space: normal; /* Override for inline edits */
 }
 [contenteditable][data-placeholder]:empty:before {
   content: attr(data-placeholder);
@@ -708,6 +714,8 @@ details summary:hover {
 .cv-bullets li { line-height: 1.6; }
 
 .cv-item__text { font-size: 13px; margin-top: 8px; }
+/* Preserve whitespace and line breaks in CV descriptions */
+.cv-item__text { white-space: pre-wrap; }
 
 .cv-cert-list { list-style: none; padding: 0; margin: 12px 0 0 16px; }
 .cv-cert-list li { padding: 12px 0; display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
@@ -785,3 +793,46 @@ details summary:hover {
   .cv-cert-list li { padding: 5mm 0; grid-template-columns: 35mm 1fr; gap: 6mm; }
   .cv-item__date--lead { white-space: nowrap !important; }
 }
+
+  /* ===== Drag & Drop Helpers ===== */
+  .drag-handle {
+    cursor: grab;
+    user-select: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    background: #eef2ff;
+    color: #4f46e5;
+    margin-right: 8px;
+    font-size: 14px;
+  }
+  .drag-handle:active { cursor: grabbing; }
+
+  .sortable-item.dragging {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+
+  .section-order {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px;
+    background: #f8fafc;
+    border: 1px dashed #c7d2fe;
+    border-radius: 8px;
+  }
+  .section-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #c7d2fe;
+    border-radius: 20px;
+    font-size: 13px;
+  }
