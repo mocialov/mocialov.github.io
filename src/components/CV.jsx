@@ -53,9 +53,10 @@ export default function CV({ data }) {
     const isViewerData =
       proj.title?.startsWith('Someone at') ||
       proj.title?.includes('…') ||
-      proj.title?.includes('...') ||
-      (!proj.date && !proj.description);
-    return !isViewerData;
+      proj.title?.includes('...');
+    const hasTitle = !!proj.title && String(proj.title).trim().length > 0;
+    // Include projects even if they lack description or date; only exclude obvious placeholder/viewer data
+    return hasTitle && !isViewerData;
   });
 
   const filteredVolunteer = (data.volunteer || []).filter(vol => {
@@ -235,7 +236,7 @@ export default function CV({ data }) {
         <section className="cv-section">
           <h2 className="cv-section__title">Projects</h2>
           <div className="cv-list">
-            {filteredProjects.slice(0, 4).map((proj, i) => (
+            {filteredProjects.map((proj, i) => (
               <div key={i} className="cv-item">
                 <div className="cv-item__line">
                   <div className="cv-item__date cv-item__date--lead">

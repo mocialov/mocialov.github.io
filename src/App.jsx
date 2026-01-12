@@ -4,6 +4,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import DOMPurify from 'dompurify';
 import CV from './components/CV.jsx';
+import CollapsibleSection from './components/CollapsibleSection.jsx';
 import EditableText from './components/EditableText.jsx';
 import './styles.css';
 import { DEBUG } from './config.js';
@@ -824,16 +825,18 @@ function App() {
               // Summary
               if (typeof draftData.about !== 'undefined' && !isSectionHidden('summary')) {
                 sectionElements.summary = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">Professional Summary</h2>
+                  <CollapsibleSection
+                    title={<>Professional Summary</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('summary')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="summary"
+                  >
                     <EditableText
                       tag="div"
                       className="about-text"
@@ -842,28 +845,30 @@ function App() {
                       placeholder="Add a short professional summary..."
                       onChange={(v) => setDraftData(prev => prev ? { ...prev, aboutHtml: v } : prev)}
                     />
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Skills (with sorting by dragging badges)
               if (filteredForScreen && filteredForScreen.skills && filteredForScreen.skills.length > 0 && !isSectionHidden('skills')) {
                 sectionElements.skills = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">🛠️ Core Skills & Expertise</h2>
+                  <CollapsibleSection
+                    title={<>🛠️ Core Skills & Expertise</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('skills')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="skills"
+                  >
                     <SortableContext items={filteredForScreen.skills.map((_, i) => getItemId('skills', i))} strategy={verticalListSortingStrategy}>
                       <div className="skills-grid">
                         {filteredForScreen.skills.slice(0, 15).map((skill, i) => (
                           <SortableRow key={getItemId('skills', i)} id={getItemId('skills', i)}>
-                            <span className="skill-badge skill-primary" style={{ position: 'relative', width: '100%' }}>
+                            <span className="skill-badge skill-primary" style={{ position: 'relative' }}>
                               <EditableText
                                 value={skill}
                                 onChange={(v) => {
@@ -880,8 +885,10 @@ function App() {
                               <button
                                 onClick={() => excludeItem('skills', skill)}
                                 title="Remove skill"
-                                style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
-                              >×</button>
+                                aria-label="Remove skill"
+                                className="icon-button icon-button--small icon-button--danger"
+                                style={{ position: 'absolute', top: -6, right: -6 }}
+                              >✕</button>
                             </span>
                           </SortableRow>
                         ))}
@@ -894,7 +901,7 @@ function App() {
                           <div className="skills-grid" style={{ marginTop: 12 }}>
                             {filteredForScreen.skills.slice(15).map((skill, i) => (
                               <SortableRow key={getItemId('skills', 15 + i)} id={getItemId('skills', 15 + i)}>
-                                <span className="skill-badge" style={{ position: 'relative', width: '100%' }}>
+                                <span className="skill-badge" style={{ position: 'relative' }}>
                                   <EditableText
                                     value={skill}
                                     onChange={(v) => {
@@ -911,8 +918,10 @@ function App() {
                                   <button
                                     onClick={() => excludeItem('skills', skill)}
                                     title="Remove skill"
-                                    style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
-                                  >×</button>
+                                    aria-label="Remove skill"
+                                    className="icon-button icon-button--small icon-button--danger"
+                                    style={{ position: 'absolute', top: -6, right: -6 }}
+                                  >✕</button>
                                 </span>
                               </SortableRow>
                             ))}
@@ -920,23 +929,25 @@ function App() {
                         </details>
                       )}
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Experience (sortable)
               if (filteredForScreen && filteredForScreen.experience && filteredForScreen.experience.length > 0 && !isSectionHidden('experience')) {
                 sectionElements.experience = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">💼 Professional Experience</h2>
+                  <CollapsibleSection
+                    title={<>💼 Professional Experience</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('experience')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="experience"
+                  >
                     <div className="experience-count">
                       {filteredForScreen.experience.length} positions
                     </div>
@@ -1024,10 +1035,10 @@ function App() {
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('experience', exp)}
-                                    className="button"
-                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    className="icon-button icon-button--danger"
                                     title="Remove this experience"
-                                  >Remove</button>
+                                    aria-label="Remove experience"
+                                  >🗑️</button>
                                 </div>
                               </div>
                             </div>
@@ -1035,23 +1046,25 @@ function App() {
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Education (sortable)
               if (filteredForScreen && filteredForScreen.education && filteredForScreen.education.length > 0 && !isSectionHidden('education')) {
                 sectionElements.education = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">🎓 Education</h2>
+                  <CollapsibleSection
+                    title={<>🎓 Education</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('education')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="education"
+                  >
                     <SortableContext items={filteredForScreen.education.map((_, i) => getItemId('education', i))} strategy={verticalListSortingStrategy}>
                       <div className="education-list">
                         {filteredForScreen.education.map((edu, i) => (
@@ -1092,33 +1105,35 @@ function App() {
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                 <button
                                   onClick={() => excludeItem('education', edu)}
-                                  className="button"
-                                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                  className="icon-button icon-button--danger"
                                   title="Remove this education"
-                                >Remove</button>
+                                  aria-label="Remove education"
+                                >🗑️</button>
                               </div>
                             </div>
                           </SortableRow>
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Certifications (sortable)
               if (filteredForScreen && filteredForScreen.certifications && filteredForScreen.certifications.length > 0 && !isSectionHidden('certifications')) {
                 sectionElements.certifications = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">📜 Certifications & Credentials</h2>
+                  <CollapsibleSection
+                    title={<>📜 Certifications & Credentials</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('certifications')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="certifications"
+                  >
                     <SortableContext items={filteredForScreen.certifications.map((_, i) => getItemId('certifications', i))} strategy={verticalListSortingStrategy}>
                       <div className="certifications-grid">
                         {filteredForScreen.certifications.map((cert, i) => (
@@ -1148,33 +1163,35 @@ function App() {
                               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                 <button
                                   onClick={() => excludeItem('certifications', cert)}
-                                  className="button"
-                                  style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                  className="icon-button icon-button--danger"
                                   title="Remove this certification"
-                                >Remove</button>
+                                  aria-label="Remove certification"
+                                >🗑️</button>
                               </div>
                             </div>
                           </SortableRow>
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Projects (sortable)
               if (filteredForScreen && filteredForScreen.projects && filteredForScreen.projects.length > 0 && !isSectionHidden('projects')) {
                 sectionElements.projects = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">🚀 Projects</h2>
+                  <CollapsibleSection
+                    title={<>🚀 Projects</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('projects')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="projects"
+                  >
                     <SortableContext items={filteredForScreen.projects.map((_, i) => getItemId('projects', i))} strategy={verticalListSortingStrategy}>
                       <div className="timeline">
                         {filteredForScreen.projects.map((proj, i) => (
@@ -1223,10 +1240,10 @@ function App() {
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('projects', proj)}
-                                    className="button"
-                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    className="icon-button icon-button--danger"
                                     title="Remove this project"
-                                  >Remove</button>
+                                    aria-label="Remove project"
+                                  >🗑️</button>
                                 </div>
                               </div>
                             </div>
@@ -1234,23 +1251,25 @@ function App() {
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Volunteer (sortable)
               if (filteredForScreen && filteredForScreen.volunteer && filteredForScreen.volunteer.length > 0 && !isSectionHidden('volunteer')) {
                 sectionElements.volunteer = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">❤️ Volunteering</h2>
+                  <CollapsibleSection
+                    title={<>❤️ Volunteering</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('volunteer')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="volunteer"
+                  >
                     <SortableContext items={filteredForScreen.volunteer.map((_, i) => getItemId('volunteer', i))} strategy={verticalListSortingStrategy}>
                       <div className="timeline">
                         {filteredForScreen.volunteer.map((vol, i) => (
@@ -1315,10 +1334,10 @@ function App() {
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('volunteer', vol)}
-                                    className="button"
-                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    className="icon-button icon-button--danger"
                                     title="Remove this volunteering item"
-                                  >Remove</button>
+                                    aria-label="Remove volunteering item"
+                                  >🗑️</button>
                                 </div>
                               </div>
                             </div>
@@ -1326,23 +1345,25 @@ function App() {
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Publications (sortable)
               if (filteredForScreen && filteredForScreen.publications && filteredForScreen.publications.length > 0 && !isSectionHidden('publications')) {
                 sectionElements.publications = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">📚 Publications</h2>
+                  <CollapsibleSection
+                    title={<>📚 Publications</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('publications')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="publications"
+                  >
                     <SortableContext items={filteredForScreen.publications.map((_, i) => getItemId('publications', i))} strategy={verticalListSortingStrategy}>
                       <div className="timeline">
                         {filteredForScreen.publications.map((pub, i) => (
@@ -1391,10 +1412,10 @@ function App() {
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('publications', pub)}
-                                    className="button"
-                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    className="icon-button icon-button--danger"
                                     title="Remove this publication"
-                                  >Remove</button>
+                                    aria-label="Remove publication"
+                                  >🗑️</button>
                                 </div>
                               </div>
                             </div>
@@ -1402,23 +1423,25 @@ function App() {
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Honors (sortable)
               if (filteredForScreen && filteredForScreen.honors && filteredForScreen.honors.length > 0 && !isSectionHidden('honors')) {
                 sectionElements.honors = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">🏆 Honors & Awards</h2>
+                  <CollapsibleSection
+                    title={<>🏆 Honors & Awards</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('honors')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="honors"
+                  >
                     <SortableContext items={filteredForScreen.honors.map((_, i) => getItemId('honors', i))} strategy={verticalListSortingStrategy}>
                       <div className="timeline">
                         {filteredForScreen.honors.map((honor, i) => (
@@ -1462,10 +1485,10 @@ function App() {
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('honors', honor)}
-                                    className="button"
-                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    className="icon-button icon-button--danger"
                                     title="Remove this honor"
-                                  >Remove</button>
+                                    aria-label="Remove honor"
+                                  >🗑️</button>
                                 </div>
                               </div>
                             </div>
@@ -1473,28 +1496,30 @@ function App() {
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Languages (sortable)
               if (filteredForScreen && filteredForScreen.languages && filteredForScreen.languages.length > 0 && !isSectionHidden('languages')) {
                 sectionElements.languages = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">🌐 Languages</h2>
+                  <CollapsibleSection
+                    title={<>🌐 Languages</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('languages')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="languages"
+                  >
                     <SortableContext items={filteredForScreen.languages.map((_, i) => getItemId('languages', i))} strategy={verticalListSortingStrategy}>
                       <div className="skills-grid">
                         {filteredForScreen.languages.map((language, i) => (
                           <SortableRow key={getItemId('languages', i)} id={getItemId('languages', i)}>
-                            <span className="skill-badge skill-primary" style={{ position: 'relative', width: '100%' }}>
+                            <span className="skill-badge skill-primary" style={{ position: 'relative' }}>
                               <EditableText
                                 value={language}
                                 onChange={(v) => {
@@ -1511,30 +1536,34 @@ function App() {
                               <button
                                 onClick={() => excludeItem('languages', language)}
                                 title="Remove language"
-                                style={{ position: 'absolute', top: -6, right: -6, background: '#ef4444', border: 'none', color: '#fff', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer' }}
-                              >×</button>
+                                aria-label="Remove language"
+                                className="icon-button icon-button--small icon-button--danger"
+                                style={{ position: 'absolute', top: -6, right: -6 }}
+                              >✕</button>
                             </span>
                           </SortableRow>
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 
               // Patents (sortable)
               if (filteredForScreen && filteredForScreen.patents && filteredForScreen.patents.length > 0 && !isSectionHidden('patents')) {
                 sectionElements.patents = (
-                  <div className="section">
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <h2 className="section-title">💡 Patents</h2>
+                  <CollapsibleSection
+                    title={<>💡 Patents</>}
+                    actions={(
                       <button
                         onClick={() => hideSection('patents')}
-                        className="button"
-                        style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                        className="icon-button icon-button--danger"
                         title="Remove this section"
-                      >Remove section</button>
-                    </div>
+                        aria-label="Remove section"
+                      >🗑️</button>
+                    )}
+                    persistKey="patents"
+                  >
                     <SortableContext items={filteredForScreen.patents.map((_, i) => getItemId('patents', i))} strategy={verticalListSortingStrategy}>
                       <div className="timeline">
                         {filteredForScreen.patents.map((patent, i) => (
@@ -1598,10 +1627,10 @@ function App() {
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('patents', patent)}
-                                    className="button"
-                                    style={{ background: '#ef4444', padding: '6px 10px', fontSize: 12 }}
+                                    className="icon-button icon-button--danger"
                                     title="Remove this patent"
-                                  >Remove</button>
+                                    aria-label="Remove patent"
+                                  >🗑️</button>
                                 </div>
                               </div>
                             </div>
@@ -1609,7 +1638,7 @@ function App() {
                         ))}
                       </div>
                     </SortableContext>
-                  </div>
+                  </CollapsibleSection>
                 );
               }
 

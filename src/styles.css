@@ -347,6 +347,9 @@ details summary:hover {
   text-align: center;
   transition: all 0.2s;
   border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .skill-badge:hover {
@@ -376,6 +379,27 @@ details summary:hover {
   cursor: pointer;
   padding: 8px 0;
 }
+
+  /* Improve alignment of sortable items globally */
+  .sortable-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .skills-grid { gap: 12px; }
+
+  /* Ensure section items expand to full available width */
+  .section .timeline,
+  .section .education-list,
+  .section .certifications-grid {
+    width: 100%;
+  }
+  .section .experience-item,
+  .section .education-item,
+  .section .certification-item {
+    width: 100%;
+  }
 
 /* Experience Section - Timeline Style */
 .experience-count {
@@ -762,6 +786,11 @@ details summary:hover {
     padding: 0 !important;
   }
 
+  /* Compact but visible spacing between sections for print */
+  .cv-section { margin-bottom: 3mm !important; padding-top: 2mm !important; border-top: 1px solid #e5e7eb !important; }
+  .cv-section:first-of-type { border-top: none !important; padding-top: 0 !important; }
+  .cv-section__title { margin: 0 0 2mm !important; }
+
   /* Ensure ONLY the CV prints */
   body * { visibility: hidden; }
   #cv, #cv * { visibility: visible; }
@@ -836,3 +865,59 @@ details summary:hover {
     border-radius: 20px;
     font-size: 13px;
   }
+
+  /* ===== Collapsible Sections ===== */
+  .collapsible-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .collapsible-toggle {
+    appearance: none;
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: inherit;
+  }
+
+  .chevron {
+    display: inline-block;
+    color: #4f46e5;
+    transition: transform 0.2s ease;
+  }
+  .chevron.open { transform: rotate(90deg); }
+
+  .collapsible-actions { display: inline-flex; align-items: center; gap: 8px; }
+  .collapsible-content { margin-top: 12px; }
+
+  /* ===== Icon Buttons ===== */
+  .icon-button {
+    appearance: none;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    color: #374151;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  }
+  .icon-button:hover { background: #f3f4f6; border-color: #d1d5db; transform: translateY(-1px); }
+  .icon-button:active { transform: none; }
+
+  .icon-button--danger { color: #ef4444; border-color: #fecaca; background: #fef2f2; }
+  .icon-button--danger:hover { background: #fee2e2; border-color: #fca5a5; }
+
+  .icon-button--small { width: 24px; height: 24px; font-size: 14px; border-radius: 6px; }
