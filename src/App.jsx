@@ -26,6 +26,15 @@ function App() {
   const DEFAULT_SECTION_ORDER = ['summary','skills','experience','education','certifications','projects','volunteer','publications','honors','languages','patents'];
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTION_ORDER);
   const [showReorderSections, setShowReorderSections] = useState(false);
+  const [pdfFriendly, setPdfFriendly] = useState(false);
+
+  useEffect(() => {
+    const cls = 'pdf-friendly';
+    const el = document.body;
+    if (!el) return;
+    if (pdfFriendly) el.classList.add(cls); else el.classList.remove(cls);
+    return () => el.classList.remove(cls);
+  }, [pdfFriendly]);
 
   const getItemId = (section, index) => `${section}:${index}`;
 
@@ -956,7 +965,6 @@ function App() {
                         {filteredForScreen.experience.map((exp, i) => (
                           <SortableRow key={getItemId('experience', i)} id={getItemId('experience', i)}>
                             <div className="experience-item">
-                              <div className="timeline-marker"></div>
                               <div className="experience-content">
                                 <h3 className="experience-title">
                                   <EditableText
@@ -1197,7 +1205,6 @@ function App() {
                         {filteredForScreen.projects.map((proj, i) => (
                           <SortableRow key={getItemId('projects', i)} id={getItemId('projects', i)}>
                             <div className="experience-item">
-                              <div className="timeline-marker"></div>
                               <div className="experience-content">
                                 <h3 className="experience-title">
                                   <EditableText
@@ -1275,7 +1282,6 @@ function App() {
                         {filteredForScreen.volunteer.map((vol, i) => (
                           <SortableRow key={getItemId('volunteer', i)} id={getItemId('volunteer', i)}>
                             <div className="experience-item">
-                              <div className="timeline-marker"></div>
                               <div className="experience-content">
                                 <h3 className="experience-title">
                                   <EditableText
@@ -1369,7 +1375,6 @@ function App() {
                         {filteredForScreen.publications.map((pub, i) => (
                           <SortableRow key={getItemId('publications', i)} id={getItemId('publications', i)}>
                             <div className="experience-item">
-                              <div className="timeline-marker"></div>
                               <div className="experience-content">
                                 <h3 className="experience-title">
                                   <EditableText
@@ -1447,7 +1452,6 @@ function App() {
                         {filteredForScreen.honors.map((honor, i) => (
                           <SortableRow key={getItemId('honors', i)} id={getItemId('honors', i)}>
                             <div className="experience-item">
-                              <div className="timeline-marker"></div>
                               <div className="experience-content">
                                 <h3 className="experience-title">
                                   <EditableText
@@ -1569,7 +1573,6 @@ function App() {
                         {filteredForScreen.patents.map((patent, i) => (
                           <SortableRow key={getItemId('patents', i)} id={getItemId('patents', i)}>
                             <div className="experience-item">
-                              <div className="timeline-marker"></div>
                               <div className="experience-content">
                                 <h3 className="experience-title">
                                   <EditableText
@@ -1670,7 +1673,15 @@ function App() {
           {/* Printable CV (collapsed by default) */}
           <details style={{ marginTop: 16 }}>
             <summary style={{ cursor: 'default', marginBottom: 8 }}>🧾 Printable CV (PDF-friendly)</summary>
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                <input
+                  type="checkbox"
+                  checked={pdfFriendly}
+                  onChange={(e) => setPdfFriendly(e.target.checked)}
+                />
+                PDF-friendly (fewer artificial page breaks)
+              </label>
               <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
                 🖨️ Print / Save as PDF
               </button>

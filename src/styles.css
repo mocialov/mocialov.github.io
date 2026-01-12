@@ -434,16 +434,7 @@ details summary:hover {
 }
 
 .timeline-marker {
-  position: absolute;
-  left: -28px;
-  top: 6px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #667eea;
-  border: 3px solid white;
-  box-shadow: 0 0 0 2px #667eea;
-  z-index: 1;
+  /* removed: timeline markers no longer used */
 }
 
 .experience-content {
@@ -821,6 +812,15 @@ details summary:hover {
   .cv-cert-list { margin-top: 6mm; }
   .cv-cert-list li { padding: 5mm 0; grid-template-columns: 35mm 1fr; gap: 6mm; }
   .cv-item__date--lead { white-space: nowrap !important; }
+}
+
+/* PDF-friendly override: reduce forced page-break avoidance so content can flow */
+@media print {
+  body.pdf-friendly .cv-section,
+  body.pdf-friendly .cv-item {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
 }
 
   /* ===== Drag & Drop Helpers ===== */
