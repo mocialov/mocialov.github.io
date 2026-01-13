@@ -738,7 +738,7 @@ details summary:hover {
 /* Preserve whitespace and line breaks in CV descriptions */
 .cv-item__text { white-space: pre-wrap; }
 
-.cv-cert-list { list-style: none; padding: 0; margin: 12px 0 0 16px; }
+.cv-cert-list { list-style: none; padding: 0; margin: 12px 0 0 16px; font-size: 13px; }
 .cv-cert-list li { padding: 8px 0; display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: start; }
 .cv-cert-list li + li { border-top: 1px solid #e5e7eb; }
 .cv-cert__name { font-weight: 600; }
@@ -827,6 +827,25 @@ details summary:hover {
   body.pdf-friendly .cv-item {
     break-inside: auto !important;
     page-break-inside: auto !important;
+  }
+  body.pdf-friendly .cv-name { font-size: 26px !important; }
+  body.pdf-friendly .cv-role { font-size: 15px !important; }
+  body.pdf-friendly .cv-contact, body.pdf-friendly .cv-contact a { font-size: 13px !important; }
+  body.pdf-friendly .cv-section__title { font-size: 15px !important; }
+  body.pdf-friendly .cv-summary { font-size: 12px !important; line-height: 1.5 !important; }
+  body.pdf-friendly .cv-bullets { font-size: 12px !important; }
+  body.pdf-friendly .cv-item__text { font-size: 12px !important; }
+  body.pdf-friendly .cv-item__meta { font-size: 11px !important; }
+  body.pdf-friendly .cv-item__role { font-size: 13px !important; }
+  body.pdf-friendly .cv-skill { font-size: 12px !important; }
+  body.pdf-friendly .cv-cert-list { font-size: 12px !important; }
+  body.pdf-friendly .cv-item__date--lead { font-size: 11px !important; }
+}
+
+/* Optional: Serif font only, without compact sizing changes */
+@media print {
+  body.pdf-serif {
+    font-family: Georgia, 'Times New Roman', serif !important;
   }
 }
 

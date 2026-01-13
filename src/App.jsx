@@ -27,6 +27,7 @@ function App() {
   const [sectionOrder, setSectionOrder] = useState(DEFAULT_SECTION_ORDER);
   const [showReorderSections, setShowReorderSections] = useState(false);
   const [pdfFriendly, setPdfFriendly] = useState(false);
+  const [pdfSerif, setPdfSerif] = useState(false);
 
   useEffect(() => {
     const cls = 'pdf-friendly';
@@ -35,6 +36,14 @@ function App() {
     if (pdfFriendly) el.classList.add(cls); else el.classList.remove(cls);
     return () => el.classList.remove(cls);
   }, [pdfFriendly]);
+
+  useEffect(() => {
+    const cls = 'pdf-serif';
+    const el = document.body;
+    if (!el) return;
+    if (pdfSerif) el.classList.add(cls); else el.classList.remove(cls);
+    return () => el.classList.remove(cls);
+  }, [pdfSerif]);
 
   const getItemId = (section, index) => `${section}:${index}`;
   
@@ -1710,7 +1719,15 @@ function App() {
                   checked={pdfFriendly}
                   onChange={(e) => setPdfFriendly(e.target.checked)}
                 />
-                PDF-friendly (fewer artificial page breaks)
+                PDF-friendly (compact print sizes & fewer breaks)
+              </label>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                <input
+                  type="checkbox"
+                  checked={pdfSerif}
+                  onChange={(e) => setPdfSerif(e.target.checked)}
+                />
+                Use serif font for print (Georgia/Times)
               </label>
               <button className="button" onClick={() => window.print()} title="Downloads a PDF via browser print">
                 🖨️ Print / Save as PDF
