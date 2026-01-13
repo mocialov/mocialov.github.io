@@ -37,6 +37,30 @@ function App() {
   }, [pdfFriendly]);
 
   const getItemId = (section, index) => `${section}:${index}`;
+  
+  // Helper: convert HTML or text to plain text
+  const toPlainText = (htmlOrText) => {
+    if (!htmlOrText) return '';
+    const s = String(htmlOrText);
+    if (/<\/?[a-z][\s\S]*>/i.test(s)) {
+      const div = document.createElement('div');
+      div.innerHTML = s;
+      return (div.textContent || '').trim();
+    }
+    return s.trim();
+  };
+  
+  // If content is duplicated back-to-back, keep only the first half
+  const dedupeRepeatedText = (htmlOrText) => {
+    const text = toPlainText(htmlOrText).replace(/\s+/g, ' ').trim();
+    if (text.length >= 2 && text.length % 2 === 0) {
+      const mid = text.length / 2;
+      const first = text.slice(0, mid);
+      const second = text.slice(mid);
+      if (first === second) return first.trim();
+    }
+    return toPlainText(htmlOrText);
+  };
 
   const SortableRow = ({ id, children }) => {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -268,6 +292,12 @@ function App() {
       setDraftData(cloned);
       // Initialize/merge section order on first data load
       const available = DEFAULT_SECTION_ORDER.filter((id) => {
+
+          // Dedupe duplicated summary text that sometimes appears in scraped HTML
+          const dedupAbout = dedupeRepeatedText(linkedinData.aboutHtml || linkedinData.about || '');
+          cloned.about = dedupAbout;
+          // Rebuild aboutHtml from deduped text to avoid duplicated HTML blocks
+          cloned.aboutHtml = sanitizeSummaryHtml(dedupAbout);
         if (id === 'summary') return typeof linkedinData.about !== 'undefined';
         return Array.isArray(linkedinData[id]);
       });
@@ -816,9 +846,9 @@ function App() {
             </div>
 
             {showReorderSections && (
-              <SortableContext items={sectionOrder} strategy={verticalListSortingStrategy}>
+              <SortableContext items={[...new Set(sectionOrder)]} strategy={verticalListSortingStrategy}>
                 <div className="section-order" style={{ marginBottom: 16 }}>
-                  {sectionOrder.map((secId) => (
+                  {[...new Set(sectionOrder)].map((secId) => (
                     <SortableRow key={secId} id={secId}>
                       <span className="section-chip">{secId}</span>
                     </SortableRow>
@@ -1648,7 +1678,7 @@ function App() {
               // Render in chosen order
               return (
                 <div>
-                  {sectionOrder.map((id) => sectionElements[id]).filter(Boolean)}
+                  {[...new Set(sectionOrder)].map((id) => sectionElements[id]).filter(Boolean)}
                 </div>
               );
             })()}
