@@ -721,6 +721,12 @@ details summary:hover {
 .cv-item__after { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
 .cv-item__desc, .cv-item__skills { grid-column: 1 / -1; }
 .cv-item__role { font-weight: 700; font-size: 14px; }
+.cv-item__role .cv-item__inline { font-weight: 400; color: #374151; }
+.cv-item__role .cv-item__inline:before { content: ' — '; color: #6b7280; font-weight: 400; }
+
+/* Projects: left-aligned (no date column) */
+.cv-item--project .cv-item__content { display: block; }
+.cv-item__skills-wrap { margin-top: 6px; }
 .cv-item__meta { display: flex; gap: 8px; color: #6b7280; font-size: 12px; }
 .cv-item__company { font-weight: 600; }
 .cv-item__date, .cv-item__loc { color: #6b7280; }
@@ -733,7 +739,7 @@ details summary:hover {
 .cv-item__text { white-space: pre-wrap; }
 
 .cv-cert-list { list-style: none; padding: 0; margin: 12px 0 0 16px; }
-.cv-cert-list li { padding: 12px 0; display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.cv-cert-list li { padding: 8px 0; display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: start; }
 .cv-cert-list li + li { border-top: 1px solid #e5e7eb; }
 .cv-cert__name { font-weight: 600; }
 
@@ -810,7 +816,8 @@ details summary:hover {
   .cv-item__line { grid-template-columns: 35mm 1fr; gap: 6mm; }
   .cv-item__after { grid-template-columns: 35mm 1fr; gap: 6mm; }
   .cv-cert-list { margin-top: 6mm; }
-  .cv-cert-list li { padding: 5mm 0; grid-template-columns: 35mm 1fr; gap: 6mm; }
+  .cv-cert-list { margin-top: 4mm; }
+  .cv-cert-list li { padding: 3mm 0; grid-template-columns: 35mm 1fr; gap: 4mm; }
   .cv-item__date--lead { white-space: nowrap !important; }
 }
 

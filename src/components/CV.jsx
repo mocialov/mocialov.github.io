@@ -101,6 +101,25 @@ export default function CV({ data }) {
     });
   };
 
+  // Produce a compact, inline-safe summary from multiline or list-like text
+  const sanitizeInline = (text) => {
+    if (!text) return '';
+    let t = String(text);
+    const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(t) || t.includes('<br');
+    let raw = looksLikeHtml ? t : t.replace(/\r\n/g, '\n');
+    // Normalize common separators and remove list wrappers
+    raw = raw
+      .replace(/<br\s*\/?>(\s*)/gi, ' • ')
+      .replace(/<\/?p>/gi, '')
+      .replace(/<\/?(ul|ol)>/gi, '')
+      .replace(/<li>\s*/gi, '')
+      .replace(/\s*<\/(li)>/gi, ' • ')
+      .replace(/[\r\n]+/g, ' • ');
+    // Trim leading separators and bullet markers
+    raw = raw.replace(/^[\s•\-–—]+/, '');
+    return DOMPurify.sanitize(raw, { ALLOWED_TAGS: ['b','strong','i','em','u','span'], ALLOWED_ATTR: [] });
+  };
+
   const MONTHS = {
     january: 'Jan', february: 'Feb', march: 'Mar', april: 'Apr', may: 'May', june: 'Jun',
     july: 'Jul', august: 'Aug', september: 'Sep', october: 'Oct', november: 'Nov', december: 'Dec'
@@ -237,38 +256,22 @@ export default function CV({ data }) {
           <h2 className="cv-section__title">Projects</h2>
           <div className="cv-list">
             {filteredProjects.map((proj, i) => (
-              <div key={i} className="cv-item">
-                <div className="cv-item__line">
-                  <div className="cv-item__date cv-item__date--lead">
-                    {formatDateText({ dates: proj.date })}
-                  </div>
-                  <div className="cv-item__content">
-                    <div className="cv-item__role">{proj.title}</div>
+              <div key={i} className="cv-item cv-item--project">
+                <div className="cv-item__content">
+                  <div className="cv-item__role">
+                    {proj.title}
+                    {proj.description && (
+                      <span className="cv-item__inline" dangerouslySetInnerHTML={{ __html: sanitizeInline(proj.description) }} />
+                    )}
                   </div>
                 </div>
-                {(proj.description || (Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0)) && (
-                  <div className="cv-item__after">
-                    {proj.description && (
-                      isLikelyList(proj.description) ? (
-                        <ul className="cv-bullets cv-item__desc">
-                          {safeList(proj.description).map((b, j) => (
-                            <li key={j}>{b}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div
-                          className="cv-item__text cv-item__desc"
-                          dangerouslySetInnerHTML={{ __html: sanitizeParagraph(proj.description) }}
-                        />
-                      )
-                    )}
-                    {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
-                      <ul className="cv-experience-skills cv-item__skills">
-                        {proj.contextual_skills.map((s, k) => (
-                          <li key={k} className="cv-skill">{s}</li>
-                        ))}
-                      </ul>
-                    )}
+                {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
+                  <div className="cv-item__skills-wrap">
+                    <ul className="cv-experience-skills cv-item__skills">
+                      {proj.contextual_skills.map((s, k) => (
+                        <li key={k} className="cv-skill">{s}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
