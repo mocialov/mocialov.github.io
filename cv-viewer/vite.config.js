@@ -3,8 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  // Deploy to https://mocialov.github.io/cv/
-  base: '/cv/',
+  // Deploy to https://mocialov.github.io/
+  base: '/',
   build: {
     outDir: 'dist',
   },
