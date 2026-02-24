@@ -121,39 +121,13 @@ export default function App() {
     <div className="viewer-root">
       {/* Toolbar */}
       <div className="viewer-toolbar">
-        <span className="viewer-toolbar__file">📄 {fileName}</span>
         <div className="viewer-toolbar__actions">
-          {cvData && (
-            <button
-              className="viewer-btn viewer-btn--secondary"
-              onClick={() => {
-                const blob = new Blob([JSON.stringify(cvData, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'cv-data.json';
-                a.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              📋 Download JSON
-            </button>
-          )}
           <button
             className="viewer-btn"
             onClick={() => window.print()}
           >
             🖨️ Print
           </button>
-          <label className="viewer-btn viewer-btn--secondary">
-            📂 Load Different File
-            <input
-              type="file"
-              accept=".html"
-              hidden
-              onChange={(e) => handleFile(e.target.files?.[0])}
-            />
-          </label>
         </div>
       </div>
 
