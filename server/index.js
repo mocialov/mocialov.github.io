@@ -26,69 +26,148 @@ let browser = null;
 let page = null;
 let consoleLogs = []; // Store browser console logs
 
+// Noisy browser messages to suppress from terminal output
+const SUPPRESSED_PATTERNS = [
+  'net::ERR_FAILED',
+  'net::ERR_ABORTED',
+  'Failed to load resource',
+  'BooleanExpression with operator',
+  'Attribute \'exception.tags\'',
+  'could not be converted to a proto',
+  '<link rel=preload>',
+  'GSI_LOGGER',
+  'EvalError',
+  'Minified React error',
+  'JSHandle@error',
+  'JSHandle@',
+  'TMS load event',
+  'visitor.publishDestinations',
+  'External tag load event',
+  'the server responded with a status of',
+  'TypeError: network error',
+];
+
+function isSuppressed(text) {
+  return SUPPRESSED_PATTERNS.some(p => text.includes(p));
+}
+
+// Resource types to block (not needed for DOM scraping, cause net::ERR_FAILED noise)
+const BLOCKED_RESOURCE_TYPES = new Set(['image', 'media', 'font']);
+const BLOCKED_URL_PATTERNS = [
+  'googletagmanager.com', 'google-analytics.com', 'doubleclick.net',
+  'facebook.net', 'fbcdn.net', 'bing.com/bat', 'ads.linkedin.com',
+  'snap.licdn.com/li.lms-analytics', 'platform.linkedin.com/litag',
+  'demdex.net', 'bat.bing.com', 'lnkd.demdex.net',
+];
+
+// Helper: launch browser, create page, wire up console listeners
+async function launchBrowser(headless) {
+  console.log(`🚀 Starting browser ${headless ? '(headless)' : '(visible)'}...`);
+
+  if (browser) {
+    try { await browser.close(); } catch (_) {}
+  }
+
+  browser = await puppeteer.launch({
+    headless: headless,
+    userDataDir: USER_DATA_DIR,
+    defaultViewport: null,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--window-size=1280,800'
+    ]
+  });
+
+  page = await browser.newPage();
+
+  // Clear previous logs
+  consoleLogs = [];
+
+  // Capture browser console output (filter noise from terminal)
+  page.on('console', msg => {
+    const type = msg.type();
+    const text = msg.text();
+    const logEntry = { type, text, timestamp: new Date().toISOString() };
+    consoleLogs.push(logEntry);
+    // Only print non-noisy messages to terminal
+    if (!isSuppressed(text)) {
+      console.log(`[Browser ${type.toUpperCase()}]:`, text);
+    }
+  });
+
+  // capture page errors (filter noise)
+  page.on('pageerror', error => {
+    const logEntry = { type: 'error', text: error.message, timestamp: new Date().toISOString() };
+    consoleLogs.push(logEntry);
+    if (!isSuppressed(error.message)) {
+      console.log('[Browser ERROR]:', error.message);
+    }
+  });
+
+
+  // Set a realistic user agent
+  await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+
+  return { browser, page };
+}
+
+// Helper: check whether the current page looks like a logged-in LinkedIn session
+async function isLoggedIn(page) {
+  try {
+    const url = page.url();
+    // URL-based checks
+    if (url.includes('authwall') || url.includes('/login') || url.includes('signup') || url.includes('checkpoint')) {
+      return false;
+    }
+    // Positive URL signals
+    if (url.includes('linkedin.com/feed') || url.includes('linkedin.com/in/') || url.includes('linkedin.com/mynetwork')) {
+      return true;
+    }
+    // DOM-based check for auth prompts
+    const hasAuthPrompt = await page.evaluate(() => {
+      const text = document.body?.innerText || '';
+      return (text.includes('Sign in') && text.includes('Join now')) ||
+             text.includes('Sign in to view') ||
+             document.querySelector('.authwall-join-form') !== null;
+    });
+    return !hasAuthPrompt;
+  } catch (_) {
+    return false;
+  }
+}
+
 // Endpoint to start browser and login
 app.post('/api/start-browser', async (req, res) => {
   try {
-    const { headless = false } = req.body; // Allow headless mode via request body
+    const { headless = false } = req.body;
 
-    console.log(`🚀 Starting browser ${headless ? '(headless)' : '(visible)'}...`);
+    await launchBrowser(headless);
 
-    if (browser) {
-      await browser.close();
-    }
-
-    browser = await puppeteer.launch({
-      headless: headless, // Can be controlled via request
-      userDataDir: USER_DATA_DIR, // Persist session
-      defaultViewport: null,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--window-size=1280,800'
-      ]
-    });
-
-    page = await browser.newPage();
-
-    // Clear previous logs
-    consoleLogs = [];
-
-    // Capture browser console output
-    page.on('console', msg => {
-      const type = msg.type();
-      const text = msg.text();
-      const logEntry = { type, text, timestamp: new Date().toISOString() };
-      consoleLogs.push(logEntry);
-      console.log(`[Browser ${type.toUpperCase()}]:`, text);
-    });
-
-    // capture page errors
-    page.on('pageerror', error => {
-      const logEntry = { type: 'error', text: error.message, timestamp: new Date().toISOString() };
-      consoleLogs.push(logEntry);
-      console.log('[Browser ERROR]:', error.message);
-    });
-
-    // Set a realistic user agent
-    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
-    // Navigate to LinkedIn login (more lenient timeout handling)
+    // Navigate to LinkedIn
+    const targetUrl = headless ? 'https://www.linkedin.com/feed' : 'https://www.linkedin.com/login';
     try {
-      await page.goto('https://www.linkedin.com/login', {
+      await page.goto(targetUrl, {
         waitUntil: 'domcontentloaded',
         timeout: 30000
       });
     } catch (navError) {
       console.log('⚠️ Navigation timeout, but page may have loaded. Continuing...');
-      // Continue anyway - page might be usable even if not fully loaded
     }
+
+    await new Promise(r => setTimeout(r, 2000));
+
+    // Report login status so the frontend can decide what to do
+    const loggedIn = await isLoggedIn(page);
+    console.log(`📋 Browser started (headless=${headless}), loggedIn=${loggedIn}`);
 
     res.json({
       success: true,
       headless: headless,
+      loggedIn: loggedIn,
       message: headless
-        ? 'Browser started in headless mode. Session will be reused if already logged in.'
+        ? (loggedIn ? 'Browser started in headless mode. Session is active.' : 'Browser started in headless mode but session is expired.')
         : 'Browser opened! Please login to LinkedIn in the browser window. Session will be saved for future use.'
     });
 
@@ -181,26 +260,33 @@ app.post('/api/scrape-profile', async (req, res) => {
 
     const profileUrl = req.body.profileUrl || 'https://www.linkedin.com/in/williamhgates/';
 
-    // Navigate to profile with extended timeout and different wait strategy
+    // Navigate to profile
     console.log('🔍 Navigating to:', profileUrl);
     try {
       await page.goto(profileUrl, {
         waitUntil: 'domcontentloaded',
-        timeout: 120000 // 2 minutes
+        timeout: 60000
       });
     } catch (navError) {
       console.log('⚠️ Navigation timeout, but page may have loaded. Continuing...');
     }
 
-    // Wait a bit for dynamic content
-    await new Promise(r => setTimeout(r, 3000));
+    // Wait for LinkedIn's React app to render content
+    try {
+      await page.waitForSelector('.scaffold-layout__main, main, #main-content', { timeout: 15000 });
+      console.log('✓ LinkedIn page content rendered');
+    } catch (_) {
+      console.log('⚠️ Main content container not found, waiting extra...');
+    }
+    await new Promise(r => setTimeout(r, 2000));
 
     // Check if we're on the right page
     const currentUrl = page.url();
-    if (currentUrl.includes('authwall') || currentUrl.includes('login')) {
+    if (currentUrl.includes('authwall') || currentUrl.includes('login') || currentUrl.includes('signup') || currentUrl.includes('checkpoint')) {
+      console.log('🚫 Session expired or not logged in. Current URL:', currentUrl);
       return res.status(401).json({
         success: false,
-        error: 'Not logged in. Please login first in the browser window.'
+        error: 'Not logged in. Please log in to LinkedIn first.'
       });
     }
 
@@ -208,7 +294,36 @@ app.post('/api/scrape-profile', async (req, res) => {
     try {
       await page.waitForSelector('h1', { timeout: 15000 });
     } catch (e) {
-      console.log('⚠️ Could not find h1, but continuing...');
+      console.log('⚠️ Could not find h1, checking if session is valid...');
+      const hasAuthPrompt = await page.evaluate(() => {
+        const text = document.body?.innerText || '';
+        return (text.includes('Sign in') && text.includes('Join now')) ||
+               text.includes('Sign in to view') ||
+               document.querySelector('.authwall-join-form') !== null;
+      });
+      if (hasAuthPrompt) {
+        console.log('🚫 LinkedIn is showing a logged-out view. Session has expired.');
+        return res.status(401).json({
+          success: false,
+          error: 'LinkedIn session expired. Please log in first.'
+        });
+      }
+      console.log('⚠️ No h1 found but no auth wall detected, continuing...');
+      // Dump diagnostic info to help debug
+      const diag = await page.evaluate(() => {
+        const url = window.location.href;
+        const title = document.title;
+        const bodyText = (document.body?.innerText || '').substring(0, 500);
+        const allH1s = Array.from(document.querySelectorAll('h1')).map(h => h.textContent.trim());
+        const allH2s = Array.from(document.querySelectorAll('h2')).map(h => h.textContent.trim()).slice(0, 5);
+        return { url, title, bodyText, allH1s, allH2s };
+      });
+      console.log('🔍 DEBUG profile page diagnosis:');
+      console.log(`   URL: ${diag.url}`);
+      console.log(`   Title: ${diag.title}`);
+      console.log(`   H1s: ${JSON.stringify(diag.allH1s)}`);
+      console.log(`   H2s: ${JSON.stringify(diag.allH2s)}`);
+      console.log(`   Body text preview: ${diag.bodyText.substring(0, 300)}`);
     }
 
     // Auto-scroll to load all content
@@ -347,8 +462,12 @@ app.post('/api/scrape-profile', async (req, res) => {
     }
 
     // Replace the skills data with what we extracted from the details page
+    // allSkills is now an array of {name, associations} objects
+    let skillObjects = [];
     if (allSkills && allSkills.length > 0) {
-      data.skills = allSkills;
+      skillObjects = allSkills;
+      // Keep data.skills as flat string array for backward compatibility
+      data.skills = allSkills.map(s => typeof s === 'string' ? s : s.name);
       console.log(`✅ Using ${allSkills.length} skills from details page`);
     }
 
@@ -447,6 +566,107 @@ app.post('/api/scrape-profile', async (req, res) => {
       return !isViewerData;
     });
 
+    // ── Associate skills with experiences ──
+    // Each skill object has {name, associations} where associations contain
+    // text like "3 experiences at Aize and 2 other companies" or
+    // "Machine Learning Lead at Buyaladdin.com, Inc"
+    if (skillObjects.length > 0 && data.experience.length > 0) {
+      console.log('🔗 Matching skills to experiences...');
+
+      // Helper: normalize a string for fuzzy matching
+      const normalize = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      // Helper: check if company name matches (fuzzy)
+      const companyMatches = (expCompany, assocText) => {
+        if (!expCompany || !assocText) return false;
+        const normExp = normalize(expCompany);
+        const normAssoc = normalize(assocText);
+        // Direct substring match
+        if (normAssoc.includes(normExp) || normExp.includes(normAssoc)) return true;
+        // Strip common suffixes for matching
+        const stripSuffixes = (s) => s.replace(/\b(inc|ltd|llc|gmbh|as|a s|corp|co|company|limited|group|plc)\b/g, '').trim();
+        const strippedExp = stripSuffixes(normExp);
+        const strippedAssoc = stripSuffixes(normAssoc);
+        if (strippedExp.length > 2 && (strippedAssoc.includes(strippedExp) || strippedExp.includes(strippedAssoc))) return true;
+        return false;
+      };
+
+      // Helper: check if job title matches (for single-experience associations like "ML Lead at Company")
+      const titleMatches = (expTitle, assocText) => {
+        if (!expTitle || !assocText) return false;
+        const normTitle = normalize(expTitle);
+        const normAssoc = normalize(assocText);
+        return normAssoc.includes(normTitle);
+      };
+
+      // Initialize skills array on each experience
+      data.experience.forEach(exp => { exp.skills = []; });
+
+      let matchCount = 0;
+      for (const skillObj of skillObjects) {
+        const skillName = typeof skillObj === 'string' ? skillObj : skillObj.name;
+        const associations = (typeof skillObj === 'string') ? [] : (skillObj.associations || []);
+
+        if (associations.length === 0) {
+          // No association info — skip matching for this skill
+          continue;
+        }
+
+        for (const assocText of associations) {
+          // Parse the association text to determine type:
+          // Type A: "N experiences at/across Company and M other companies"
+          // Type B: "JobTitle at Company" (single experience)
+          const multiMatch = assocText.match(/(\d+)\s*experiences?\s*(?:across|at)\s+(.+?)(?:\s+and\s+\d+\s+other\s+compan)/i);
+          const singleMatch = assocText.match(/^(.+?)\s+at\s+(.+)$/i);
+
+          if (multiMatch) {
+            // Multi-experience: extract the named company
+            const namedCompany = multiMatch[2].trim();
+            for (const exp of data.experience) {
+              if (companyMatches(exp.company, namedCompany)) {
+                if (!exp.skills.includes(skillName)) {
+                  exp.skills.push(skillName);
+                  matchCount++;
+                }
+              }
+            }
+          } else if (singleMatch) {
+            // Single experience: "JobTitle at Company"
+            const jobTitle = singleMatch[1].trim();
+            const company = singleMatch[2].trim();
+            for (const exp of data.experience) {
+              // Match by both title+company or just company
+              if (companyMatches(exp.company, company) &&
+                  (titleMatches(exp.title, jobTitle) || !jobTitle)) {
+                if (!exp.skills.includes(skillName)) {
+                  exp.skills.push(skillName);
+                  matchCount++;
+                }
+              }
+            }
+          }
+
+          // Also try to match against ALL experiences by company name from the full text
+          for (const exp of data.experience) {
+            if (exp.company && companyMatches(exp.company, assocText)) {
+              if (!exp.skills.includes(skillName)) {
+                exp.skills.push(skillName);
+                matchCount++;
+              }
+            }
+          }
+        }
+      }
+
+      console.log(`✅ Matched ${matchCount} skill-experience associations`);
+      // Log summary per experience
+      for (const exp of data.experience) {
+        if (exp.skills.length > 0) {
+          console.log(`   ${exp.title} @ ${exp.company}: ${exp.skills.length} skills`);
+        }
+      }
+    }
+
     console.log('✅ Data extraction complete!');
     console.log('📋 Extracted:', {
       name: data.name,
@@ -541,8 +761,20 @@ async function navigateAndExtractDetailsPage(page, profileUrl, detailsType, extr
   try {
     // Navigate to details page
     console.log(`   → Navigating to: ${detailsUrl}`);
-    await page.goto(detailsUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 3000));
+    try {
+      await page.goto(detailsUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch (navError) {
+      console.log(`   ⚠️ Navigation timeout for ${detailsType}, continuing...`);
+    }
+    // Wait for LinkedIn list items to appear
+    try {
+      await page.waitForSelector('.scaffold-layout__main, main', { timeout: 10000 });
+      await page.waitForSelector('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated', { timeout: 10000 });
+      console.log(`   ✓ ${detailsType} list items found`);
+    } catch (_) {
+      console.log(`   ⚠️ No list items found for ${detailsType}, page may be empty or blocked`);
+    }
+    await new Promise(r => setTimeout(r, 1000));
 
     // Scroll to load all content
     console.log(`   → Scrolling to load all ${detailsType}...`);
@@ -571,12 +803,102 @@ async function navigateAndExtractDetailsPage(page, profileUrl, detailsType, extr
       }
     });
 
+    // Click all "Load more" buttons to reveal paginated content (e.g. skills)
+    console.log(`   → Clicking "Load more" buttons for ${detailsType}...`);
+    let totalLoadMoreClicks = 0;
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const clicked = await page.evaluate(() => {
+        // Strategy 1: Old layout — scaffold-finite-scroll__load-button
+        const oldBtn = document.querySelector('.scaffold-finite-scroll__load-button');
+        if (oldBtn && oldBtn.offsetParent !== null) {
+          oldBtn.scrollIntoView({ behavior: 'instant', block: 'center' });
+          oldBtn.click();
+          return true;
+        }
+        // Strategy 2: New SDUI layout — find button whose text is "Load more" or "Show more results"
+        const allButtons = Array.from(document.querySelectorAll('button'));
+        for (const btn of allButtons) {
+          const text = (btn.textContent || '').trim().toLowerCase();
+          if ((text === 'load more' || text === 'show more results') && btn.offsetParent !== null) {
+            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+            btn.click();
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (!clicked) break;
+      totalLoadMoreClicks++;
+      // Wait for new content to load after clicking
+      await new Promise(r => setTimeout(r, 1200));
+    }
+    if (totalLoadMoreClicks > 0) {
+      console.log(`   ✓ Clicked "Load more" ${totalLoadMoreClicks} time(s)`);
+      // Extra scroll after loading more to ensure everything is rendered
+      await page.evaluate(async () => {
+        const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight;
+          await new Promise(r => setTimeout(r, 500));
+          scrollContainer.scrollTop = 0;
+        }
+      });
+    }
+
     console.log(`   ✓ ${detailsType} details page loaded`);
 
     // Extract data using provided extraction function
     const extractedData = await extractionFunction(page);
 
     console.log(`   ✓ Extracted ${extractedData.length} ${detailsType} entries from details page`);
+
+    // Diagnostic: if 0 results, dump page info to help debug
+    if (extractedData.length === 0) {
+      const diag = await page.evaluate(() => {
+        const url = window.location.href;
+        const title = document.title;
+        const h1 = document.querySelector('h1')?.textContent?.trim() || '(none)';
+        const listItems = document.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated').length;
+        const mainText = (document.querySelector('main')?.innerText || '').substring(0, 500);
+        const hasAuthWall = document.querySelector('.authwall-join-form') !== null;
+        const bodyClasses = document.body?.className || '';
+
+        // NEW: Dump actual DOM structure to find new selectors
+        const main = document.querySelector('main');
+        const allLis = main ? Array.from(main.querySelectorAll('li')).slice(0, 5) : [];
+        const liInfo = allLis.map(li => ({
+          classes: li.className,
+          id: li.id || '',
+          tag: li.tagName,
+          childCount: li.children.length,
+          textPreview: li.textContent?.trim()?.substring(0, 80) || ''
+        }));
+        // All unique class names on <li> elements inside main
+        const allLiClasses = main
+          ? [...new Set(Array.from(main.querySelectorAll('li')).map(li => li.className).filter(Boolean))]
+          : [];
+        // The direct structure of main's children
+        const mainChildren = main
+          ? Array.from(main.children).map(el => `${el.tagName}.${el.className?.split(' ').join('.')}`.substring(0, 120))
+          : [];
+        // Get the outerHTML of the first <li> inside main (truncated)
+        const firstLiHtml = allLis.length > 0 ? allLis[0].outerHTML.substring(0, 500) : '(no li found)';
+
+        return { url, title, h1, listItems, mainText, hasAuthWall, bodyClasses, liInfo, allLiClasses, mainChildren, firstLiHtml };
+      });
+      console.log(`   🔍 DEBUG ${detailsType} page diagnosis:`);
+      console.log(`      URL: ${diag.url}`);
+      console.log(`      Title: ${diag.title}`);
+      console.log(`      h1: ${diag.h1}`);
+      console.log(`      List items found (old selectors): ${diag.listItems}`);
+      console.log(`      Auth wall: ${diag.hasAuthWall}`);
+      console.log(`      Main children: ${JSON.stringify(diag.mainChildren)}`);
+      console.log(`      Li classes in main: ${JSON.stringify(diag.allLiClasses)}`);
+      console.log(`      First 5 lis:`, JSON.stringify(diag.liInfo, null, 2));
+      console.log(`      First li HTML: ${diag.firstLiHtml}`);
+      console.log(`      Main text preview: ${diag.mainText.substring(0, 300)}`);
+    }
 
     // Navigate back to profile
     console.log('🔙 Navigating back to main profile page...');
@@ -635,28 +957,7 @@ app.post('/api/switch-to-headless', async (req, res) => {
     }
 
     console.log('🔄 Switching to headless mode...');
-
-    // Close current browser
-    await browser.close();
-    browser = null;
-    page = null;
-
-    // Relaunch in headless mode with same user data
-    browser = await puppeteer.launch({
-      headless: true,
-      userDataDir: USER_DATA_DIR, // Reuse same session
-      defaultViewport: null,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-blink-features=AutomationControlled',
-        '--window-size=1280,800'
-      ]
-    });
-
-    page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-
+    await launchBrowser(true);
     console.log('✅ Browser now running in headless mode');
 
     res.json({

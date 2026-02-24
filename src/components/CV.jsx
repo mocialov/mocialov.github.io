@@ -220,29 +220,29 @@ export default function CV({ data }) {
                     </div>
                   </div>
                 </div>
-                {(exp.description || (Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0)) && (
+                {exp.description && (
                   <div className="cv-item__after">
-                    {exp.description && (
-                      isLikelyList(exp.description) ? (
-                        <ul className="cv-bullets cv-item__desc">
-                          {safeList(exp.description).map((b, j) => (
-                            <li key={j}>{b}</li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <div
-                          className="cv-item__text cv-item__desc"
-                          dangerouslySetInnerHTML={{ __html: sanitizeParagraph(exp.description) }}
-                        />
-                      )
-                    )}
-                    {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
-                      <ul className="cv-experience-skills cv-item__skills">
-                        {exp.contextual_skills.map((s, k) => (
-                          <li key={k} className="cv-skill">{s}</li>
+                    {isLikelyList(exp.description) ? (
+                      <ul className="cv-bullets cv-item__desc">
+                        {safeList(exp.description).map((b, j) => (
+                          <li key={j}>{b}</li>
                         ))}
                       </ul>
+                    ) : (
+                      <div
+                        className="cv-item__text cv-item__desc"
+                        dangerouslySetInnerHTML={{ __html: sanitizeParagraph(exp.description) }}
+                      />
                     )}
+                  </div>
+                )}
+                {Array.isArray(exp.skills) && exp.skills.length > 0 && (
+                  <div className="cv-item__skills-wrap">
+                    <ul className="cv-experience-skills cv-item__skills">
+                      {exp.skills.map((s, k) => (
+                        <li key={k} className="cv-skill">{s}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>

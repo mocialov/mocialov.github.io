@@ -1,337 +1,329 @@
 /**
  * Extraction functions for LinkedIn data.
+ * Updated for LinkedIn's new SDUI DOM structure (2025+).
  * These are designed to be run inside page.evaluate().
+ *
+ * IMPORTANT: Each function must be fully self-contained because
+ * page.evaluate() serializes each function individually.
+ * All helper functions are inlined as local functions.
+ *
+ * LinkedIn uses hashed CSS class names that change frequently.
+ * We rely on stable selectors: data-testid, data-view-name, componentkey,
+ * aria-label, structural position, and text-based heuristics.
  */
 
-/**
- * Extract experience data from LinkedIn details/experience page
- */
+// ─── Experience ────────────────────────────────────────────────
+
 function extractExperienceData() {
+    // ── Inline helpers ──
+    function isDateLike(text) {
+        return /\b\d{4}\b/.test(text) || /\bpresent\b/i.test(text);
+    }
+    function isLocationLike(text) {
+        // Don't treat "Company · Employment Type" patterns as locations
+        if (text.includes(' · ') && /\b(full.?time|part.?time|contract|freelance|self.?employed|internship|seasonal|apprenticeship)\b/i.test(text)) return false;
+        return text.includes(',') && !/\b\d{4}\b/.test(text) && text.length < 120;
+    }
+    function isWorkArrangement(text) {
+        return /^(on.?site|remote|hybrid)$/i.test(text.trim());
+    }
+    function parseDateRange(text) {
+        if (!text) return { range: '', startDate: '', endDate: '', duration: '' };
+        let t = text.replace(/\s+/g, ' ').trim();
+        let duration = '';
+        if (t.includes(' · ')) {
+            const parts = t.split(' · ');
+            t = parts[0].trim();
+            duration = parts.slice(1).join(' · ').trim();
+        }
+        if (!/\b\d{4}\b/.test(t) && !/present/i.test(t)) {
+            return { range: '', startDate: '', endDate: '', duration: '' };
+        }
+        const splitter = /\s[-–—]\s/;
+        let startDate = '', endDate = '';
+        if (splitter.test(t)) {
+            const [start, end] = t.split(splitter);
+            startDate = (start || '').trim();
+            endDate = (end || '').trim();
+        } else {
+            startDate = t;
+        }
+        const range = endDate ? `${startDate} - ${endDate}` : startDate;
+        return { range, startDate, endDate, duration };
+    }
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const experiences = [];
-    const mainContent = document.querySelector('main') || document.body;
-    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+    const items = findDetailPageItems();
 
     items.forEach(item => {
         try {
-            // Get all visible text spans
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
-                .filter(t => t && t.length > 0 && !t.includes('Someone at'));
+            const texts = getMetadataParagraphs(item);
+            if (texts.length < 2) return;
 
-            if (allSpans.length < 2) return; // Need at least title and company
-
-            // First span is usually title, second is company with employment type
-            const title = allSpans[0] || '';
-            const companyLine = allSpans[1] || '';
-            // Find dates (contains year or "Present") with robust parsing
-            // Prefer a line that contains a range and possibly duration ("· 2 yrs 3 mos")
-            const dateCandidates = [];
-            const rawMeta = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]')?.textContent?.trim();
-            if (rawMeta) dateCandidates.push(rawMeta);
-            // Add all spans that look like they contain dates
-            allSpans.forEach(s => {
-                if (/\d{4}/.test(s) || /present/i.test(s)) {
-                    dateCandidates.push(s);
-                }
-            });
-
-            // De-duplicate while preserving order
-            const seen = new Set();
-            const uniqueCandidates = dateCandidates.filter(s => {
-                if (seen.has(s)) return false;
-                seen.add(s);
-                return true;
-            });
-
-            // Helper: normalize a candidate into a clean date range and optional parts
-            function parseDateRange(text) {
-                if (!text) return { range: '', startDate: '', endDate: '', duration: '' };
-                // Remove excessive whitespace
-                let t = text.replace(/\s+/g, ' ').trim();
-                // Split off duration if present (e.g., " · 2 yrs 3 mos")
-                let duration = '';
-                if (t.includes(' · ')) {
-                    const parts = t.split(' · ');
-                    t = parts[0].trim();
-                    duration = parts.slice(1).join(' · ').trim();
-                }
-                // Accept only strings that look like a range or a single year/month-year
-                const hasYear = /\b\d{4}\b/.test(t);
-                if (!hasYear && !/present/i.test(t)) return { range: '', startDate: '', endDate: '', duration: '' };
-                // Split on common dash characters
-                const splitter = /\s[-–—]\s/; // space dash space
-                let startDate = '', endDate = '';
-                if (splitter.test(t)) {
-                    const [start, end] = t.split(splitter);
-                    startDate = (start || '').trim();
-                    endDate = (end || '').trim();
-                } else {
-                    // No explicit range, treat as single date
-                    startDate = t;
-                }
-                const range = endDate ? `${startDate} - ${endDate}` : startDate;
-                return { range, startDate, endDate, duration };
-            }
-
+            let title = texts[0] || '';
+            let company = '';
+            let dates = '';
+            let location = '';
             let parsed = { range: '', startDate: '', endDate: '', duration: '' };
-            for (const cand of uniqueCandidates) {
-                const p = parseDateRange(cand);
-                // Heuristic: prefer candidates that yield a non-empty range and have a year
-                if (p.range && (/\d{4}/.test(p.range) || /present/i.test(p.range))) {
-                    parsed = p;
+            const used = new Set([0]);
+
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                if (isDateLike(texts[i])) {
+                    parsed = parseDateRange(texts[i]);
+                    dates = parsed.range || texts[i];
+                    used.add(i);
                     break;
                 }
             }
-            const dates = parsed.range || '';
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                if (used.has(i)) continue;
+                if (!isDateLike(texts[i]) && !isLocationLike(texts[i]) && !isWorkArrangement(texts[i])) {
+                    company = texts[i];
+                    used.add(i);
+                    break;
+                }
+            }
+            if (!company) {
+                for (let i = 1; i < texts.length && i < 6; i++) {
+                    if (used.has(i)) continue;
+                    if (/\b(full.?time|part.?time|contract|freelance|self.?employed|internship|seasonal|apprenticeship)\b/i.test(texts[i])) {
+                        company = texts[i];
+                        used.add(i);
+                        break;
+                    }
+                }
+            }
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                if (used.has(i)) continue;
+                if (isLocationLike(texts[i])) {
+                    location = texts[i];
+                    used.add(i);
+                    break;
+                }
+            }
 
-            // Find location (has comma, no years, not too long)
-            const location = allSpans.find(s =>
-                s.includes(',') &&
-                !/\d{4}/.test(s) &&
-                s.length < 100 &&
-                s !== title &&
-                s !== companyLine
-            ) || '';
-
-            // Description: prefer structured sub-components and preserve line breaks
             let description = '';
-            try {
-                const sub = item.querySelector('.pvs-entity__sub-components');
-                if (sub) {
-                    const rowItems = Array.from(sub.querySelectorAll('li.pvs-list__item--with-top-padding'));
-                    // Identify index of first skills row
-                    const skillsIndex = rowItems.findIndex(li => /\bSkills:\b/i.test(li.textContent || ''));
-                    const candidateRows = (skillsIndex === -1 ? rowItems : rowItems.slice(0, skillsIndex))
-                        .filter(li => !li.querySelector('a.optional-action-target-wrapper'));
-                    const parts = [];
-                    for (const li of candidateRows) {
-                        const span = li.querySelector('span[aria-hidden="true"]');
-                        const lines = (span?.innerText || span?.textContent || li.innerText || li.textContent || '')
-                            .replace(/\r\n?/g, '\n')
-                            .split('\n')
-                            // Preserve empty lines; trim only trailing spaces
-                            .map(s => s.replace(/\s+$/,''));
-                        const text = lines.join('\n');
-                        if (!text) continue;
-                        if (/\bSkills:\b/i.test(text)) continue;
-                        if (text === title || text === companyLine || text === dates || text === location) continue;
-                        parts.push(text);
-                    }
-                    if (parts.length) {
-                        description = parts.join('\n').trim();
-                    }
-                }
-            } catch (e) { /* ignore */ }
-
-            if (!description) {
-                const descContainer = item.querySelector('.inline-show-more-text, .pvs-list__outer-container');
-                if (descContainer) {
-                    const raw = (descContainer.innerText || descContainer.textContent || '').replace(/\r\n?/g, '\n');
-                    const lines = raw
-                        .split('\n')
-                        // Preserve empty lines; trim only trailing spaces
-                        .map(s => s.replace(/\s+$/,''));
-                    description = lines.join('\n');
-                } else {
-                    // Fallback: longest non-metadata line
-                    const longText = allSpans.find(s =>
-                        s.length > 50 &&
-                        s !== title &&
-                        s !== companyLine &&
-                        s !== dates &&
-                        s !== location
-                    );
-                    if (longText) description = longText;
-                }
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) {
+                description = (descSpan.innerText || descSpan.textContent || '').trim();
             }
 
-            // Ensure description does not include a trailing Skills: label (skills are extracted separately)
-            if (description && /Skills:/i.test(description)) {
-                const cut = description.search(/Skills:/i);
-                if (cut !== -1) description = description.slice(0, cut).trim();
-            }
-
-            // Contextual skills (if present under sub-components)
-            let contextualSkills = [];
-            try {
-                const skillSpan = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                    .find(s => /\bSkills:\b/i.test(s.textContent));
-                if (skillSpan) {
-                    const text = skillSpan.textContent.replace(/^[\s\S]*?Skills:\s*/i, '').trim();
-                    const parts = text.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                    const seen = new Set();
-                    contextualSkills = parts.filter(p => {
-                        const key = p.toLowerCase();
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                    });
-                }
-                // Fallback: parse any row that includes the "Skills:" label (not always under `.pvs-entity__sub-components`)
-                if (!contextualSkills.length) {
-                    const rows = Array.from(item.querySelectorAll('.display-flex.align-items-center.t-14.t-normal.t-black'))
-                        .filter(row => /\bSkills:\b/i.test(row.textContent));
-                    for (const row of rows) {
-                        const strong = row.querySelector('strong');
-                        const container = strong ? strong.parentElement : row;
-                        const raw = (container?.textContent || '').replace(/\s+/g, ' ').trim();
-                        const m = raw.match(/Skills:\s*(.*)$/i);
-                        if (m) {
-                            const stripped = m[1].trim();
-                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                            const seen = new Set();
-                            const tokens = parts.filter(p => {
-                                const key = p.toLowerCase();
-                                if (seen.has(key)) return false;
-                                seen.add(key);
-                                return true;
-                            });
-                            if (tokens.length) {
-                                contextualSkills = tokens;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // Final fallback: any strong element with 'Skills:' inside the item
-                if (!contextualSkills.length) {
-                    const labels = Array.from(item.querySelectorAll('strong'))
-                        .filter(el => /\bSkills:\b/i.test(el.textContent || ''));
-                    for (const strong of labels) {
-                        const raw = (strong.parentElement?.textContent || '').replace(/\s+/g, ' ').trim();
-                        const m = raw.match(/Skills:\s*(.*)$/i);
-                        if (m) {
-                            const stripped = m[1].trim();
-                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                            const seen = new Set();
-                            const tokens = parts.filter(p => {
-                                const key = p.toLowerCase();
-                                if (seen.has(key)) return false;
-                                seen.add(key);
-                                return true;
-                            });
-                            if (tokens.length) {
-                                contextualSkills = tokens;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // Text-based fallback: search entire item text for 'Skills:' and parse following tokens
-                if (!contextualSkills.length) {
-                    const text = (item.innerText || item.textContent || '').trim();
-                    const mt = text.match(/Skills:\s*(.+?)(?:\r?\n|$)/i);
-                    if (mt && mt[1]) {
-                        const parts = mt[1].trim().split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                        const seen = new Set();
-                        contextualSkills = parts.filter(p => {
-                            const key = p.toLowerCase();
-                            if (seen.has(key)) return false;
-                            if (/\bSkills:\b/i.test(p) || p.includes(' - ')) return false;
-                            seen.add(key);
-                            return true;
-                        });
-                    }
-                }
-            } catch (e) {
-                // ignore skills extraction errors
-            }
-
-            // Filter out viewer data
-            const isViewerData =
-                title.startsWith('Someone at') ||
-                companyLine.startsWith('Someone at') ||
-                title.includes('…') ||
-                (!dates && !companyLine);
-
-            if (!isViewerData && title) {
-                const exp = {
-                    title,
-                    company: companyLine,
-                    dates,
-                    location,
-                        description,
-                        contextual_skills: contextualSkills
-                };
-                // Provide raw from/to dates instead of duration
+            if (title && !title.startsWith('Someone at') && !title.includes('…')) {
+                const exp = { title, company, dates, location, description };
                 if (parsed.startDate) exp.from = parsed.startDate;
                 if (parsed.endDate) exp.to = parsed.endDate;
                 experiences.push(exp);
             }
-        } catch (e) {
-            console.error('Error extracting experience item:', e);
-        }
+        } catch (e) { /* ignore */ }
     });
 
     return experiences;
 }
 
-/**
- * Extract education data from LinkedIn details/education page
- */
+// ─── Education ─────────────────────────────────────────────────
+
 function extractEducationData() {
-    const education = [];
-
-    // Only select items from the main content area, not from "Who viewed" sidebar
-    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
-    const items = mainContent.querySelectorAll('.pvs-list__item--line-separated, li.pvs-list__paged-list-item');
-
-    items.forEach((item) => {
-        try {
-            // Prefer bold school name
-            const schoolElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-            // Prefer non "t-black--light" for degree (to avoid picking the date row)
-            const degreeElem = item.querySelector('.t-14.t-normal:not(.t-black--light) span[aria-hidden="true"]');
-            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => (s.textContent || '').trim())
-                .filter(t => t && t.length > 0);
-
-            // Helper: parse date range like "2015 - 2020" or "Sep 2015 - Jun 2020 · 4 yrs"
-            function parseDateRange(text) {
-                if (!text) return { range: '', startDate: '', endDate: '' };
-                let t = text.replace(/\s+/g, ' ').trim();
-                // Drop trailing duration if present
-                if (t.includes(' · ')) t = t.split(' · ')[0].trim();
-                // If it doesn't look like a date, bail
-                if (!/(\b\d{4}\b|present)/i.test(t)) return { range: '', startDate: '', endDate: '' };
-                const splitter = /\s[-–—]\s/;
-                let startDate = '', endDate = '';
-                if (splitter.test(t)) {
-                    const [start, end] = t.split(splitter);
-                    startDate = (start || '').trim();
-                    endDate = (end || '').trim();
-                } else {
-                    startDate = t;
+    // ── Inline helpers ──
+    function isDateLike(text) {
+        return /\b\d{4}\b/.test(text) || /\bpresent\b/i.test(text);
+    }
+    function parseDateRange(text) {
+        if (!text) return { range: '', startDate: '', endDate: '', duration: '' };
+        let t = text.replace(/\s+/g, ' ').trim();
+        let duration = '';
+        if (t.includes(' · ')) {
+            const parts = t.split(' · ');
+            t = parts[0].trim();
+            duration = parts.slice(1).join(' · ').trim();
+        }
+        if (!/\b\d{4}\b/.test(t) && !/present/i.test(t)) {
+            return { range: '', startDate: '', endDate: '', duration: '' };
+        }
+        const splitter = /\s[-–—]\s/;
+        let startDate = '', endDate = '';
+        if (splitter.test(t)) {
+            const [start, end] = t.split(splitter);
+            startDate = (start || '').trim();
+            endDate = (end || '').trim();
+        } else {
+            startDate = t;
+        }
+        const range = endDate ? `${startDate} - ${endDate}` : startDate;
+        return { range, startDate, endDate, duration };
+    }
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
                 }
-                const range = endDate ? `${startDate} - ${endDate}` : startDate;
-                return { range, startDate, endDate };
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
             }
-
-            // Collect date candidates: explicit date element, plus any span with a year/Present
-            const dateCandidates = [];
-            const rawMeta = dateElem?.textContent?.trim();
-            if (rawMeta) dateCandidates.push(rawMeta);
-            for (const s of allSpans) {
-                if (/\d{4}/.test(s) || /present/i.test(s)) dateCandidates.push(s);
-            }
-            // De-duplicate while preserving order
-            const seen = new Set();
-            const uniqueCandidates = dateCandidates.filter(s => {
-                if (seen.has(s)) return false;
-                seen.add(s);
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
                 return true;
-            });
-            let parsed = { range: '', startDate: '', endDate: '' };
-            for (const cand of uniqueCandidates) {
-                const p = parseDateRange(cand);
-                if (p.range) { parsed = p; break; }
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
+    const education = [];
+    const items = findDetailPageItems();
+
+    items.forEach(item => {
+        try {
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
+
+            const school = texts[0] || '';
+            let degreeText = '';
+            let dateText = '';
+            let grade = '';
+
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                const t = texts[i];
+                if (!dateText && isDateLike(t) && !/\bgrade\b/i.test(t)) {
+                    dateText = t;
+                } else if (!grade && /\bgrade\b/i.test(t)) {
+                    grade = t;
+                } else if (!degreeText) {
+                    degreeText = t;
+                }
             }
 
-            // Degree + field
-            const degreeText = degreeElem?.textContent?.trim() || allSpans.find(s => s && !/(\b\d{4}\b|present)/i.test(s) && s !== (schoolElem?.textContent?.trim() || '')) || '';
             let degree = degreeText;
             let field = '';
             if (degreeText.includes(',')) {
@@ -340,354 +332,516 @@ function extractEducationData() {
                 field = parts.join(',').trim();
             }
 
+            const parsed = parseDateRange(dateText);
             const edu = {
-                school: schoolElem?.textContent?.trim() || allSpans[0] || '',
-                degree,
-                field,
-                duration: parsed.range || '',
+                school, degree, field,
+                duration: parsed.range || dateText || '',
                 description: ''
             };
             if (parsed.startDate) edu.from = parsed.startDate;
             if (parsed.endDate) edu.to = parsed.endDate;
 
-            // Filter out viewer data (same logic as experiences)
-            const isViewerData =
-                edu.school.startsWith('Someone at') ||
-                edu.degree.startsWith('Someone at') ||
-                edu.school.includes('…') ||
-                edu.school.includes('...') ||
-                (edu.school.match(/\bat\b/i) && !edu.degree && !edu.duration) ||
-                (!edu.duration && !edu.degree && edu.school);
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) {
+                edu.description = (descSpan.innerText || descSpan.textContent || '').trim();
+            }
 
-            if (edu.school && !isViewerData) {
+            if (school && !school.startsWith('Someone at') && !school.includes('…')) {
                 education.push(edu);
             }
-        } catch (e) {
-            // Ignore
-        }
+        } catch (e) { /* ignore */ }
     });
 
     return education;
 }
 
-/**
- * Extract certification data from LinkedIn details/certifications page
- */
+// ─── Certifications ────────────────────────────────────────────
+
 function extractCertificationData() {
-    const certifications = [];
-    const items = document.querySelectorAll('.pvs-list__item, li.pvs-list__paged-list-item, li.artdeco-list__item, li.pvs-list__item--line-separated');
-
-    items.forEach((item) => {
-        try {
-            const nameElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"]') ||
-                item.querySelector('span.t-bold span[aria-hidden="true"]') ||
-                item.querySelector('.pvs-entity__path span[aria-hidden="true"]');
-            const issuerElem = item.querySelector('.t-14.t-normal span[aria-hidden="true"]') ||
-                item.querySelector('.pvs-entity__caption-wrapper span[aria-hidden="true"]');
-            const dateElem = item.querySelector('.t-14.t-normal.t-black--light span[aria-hidden="true"]');
-
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
-                .filter(t => t && t.length > 0 && t.length < 500);
-
-            const cert = {
-                name: nameElem?.textContent?.trim() || allSpans[0] || '',
-                issuer: issuerElem?.textContent?.trim() || allSpans[1] || '',
-                date: '',
-                credentialId: '',
-                url: ''
-            };
-
-            const dateSpan = dateElem?.textContent?.trim() || allSpans.find(s => /\d{4}|Issued|Expires/i.test(s));
-            if (dateSpan) cert.date = dateSpan;
-
-            const credentialSpan = allSpans.find(s => /Credential ID|ID:/i.test(s));
-            if (credentialSpan) {
-                cert.credentialId = credentialSpan.replace(/Credential ID:?/i, '').trim();
+    // ── Inline helpers ──
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
             }
-
-            const link = item.querySelector('a[href*="credential"], a[href*="credly"], a[href*="certificate"]');
-            if (link) cert.url = link.href;
-
-            if (cert.name || cert.issuer) {
-                certifications.push(cert);
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
             }
-        } catch (e) {
-            // Ignore
         }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
+    const certifications = [];
+    const items = findDetailPageItems();
+
+    items.forEach(item => {
+        try {
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
+
+            const cert = { name: texts[0] || '', issuer: '', date: '', credentialId: '', url: '' };
+
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                const t = texts[i];
+                if (/Credential ID/i.test(t)) {
+                    cert.credentialId = t.replace(/Credential ID:?\s*/i, '').trim();
+                } else if (!cert.date && /Issued|Expires|\d{4}/.test(t)) {
+                    cert.date = t;
+                } else if (!cert.issuer) {
+                    cert.issuer = t;
+                }
+            }
+
+            const credLink = item.querySelector(
+                'a[data-view-name*="license-certifications-see"], ' +
+                'a[href*="credential"], a[href*="credly"], a[href*="certificate"]'
+            );
+            if (credLink) cert.url = credLink.href;
+
+            if (cert.name) certifications.push(cert);
+        } catch (e) { /* ignore */ }
     });
 
     return certifications;
 }
 
-/**
- * Extract projects data from LinkedIn details/projects page
- */
+// ─── Projects ──────────────────────────────────────────────────
+
 function extractProjectsData() {
+    // ── Inline helpers ──
+    function isDateLike(text) {
+        return /\b\d{4}\b/.test(text) || /\bpresent\b/i.test(text);
+    }
+    function parseSkillsText(text) {
+        if (!text) return [];
+        let t = text.replace(/^[\s\S]*?Skills:\s*/i, '').trim();
+        t = t.replace(/\s+and\s+\+\d+\s*skills?\s*$/i, '').trim();
+        t = t.replace(/,?\s*\+\d+\s*skills?\s*$/i, '').trim();
+        const parts = t.split(/\s*[,·•|]\s*/).map(p => p.trim()).filter(Boolean);
+        const seen = new Set();
+        return parts.filter(p => { const k = p.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    }
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const projects = [];
-    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
-
-    // Get ALL list items to be safe
-    // Get ALL list items with specific classes (avoid generic li which picks up nested items)
-    const items = Array.from(mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated'));
-
-    // console.log(`[Browser] Found ${items.length} total LI elements in main content`);
-
+    const items = findDetailPageItems();
     const processedTitles = new Set();
 
-    items.forEach((item, index) => {
+    items.forEach(item => {
         try {
-            const fullText = item.innerText.trim();
-            if (fullText.length < 5) return; // Skip empty items
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
 
-            // Strategy: Text-based parsing (most reliable for variable DOM)
-            const lines = fullText.split('\n').map(l => l.trim()).filter(l => l);
-
-            if (lines.length === 0) return;
-
-            // Assumption: 1st line is Title
-            let title = lines[0];
-
-            // Assumption: Date is usually 2nd line, or contains year
-            let date = '';
-            const dateLineIndex = lines.findIndex(l =>
-                /\d{4}/.test(l) &&
-                (l.includes('Present') || l.includes(' - ') || l.match(/^[a-zA-Z]{3} \d{4}$/) || l.match(/^\d{4}$/))
-            );
-
-            if (dateLineIndex > 0 && dateLineIndex <= 2) {
-                date = lines[dateLineIndex];
-            }
-
-            // Deduplicate
+            const title = texts[0] || '';
             if (processedTitles.has(title)) return;
             processedTitles.add(title);
 
-            // Link
-            let url = '';
-            const linkElem = item.querySelector('a.app-aware-link') || item.querySelector('a[href*="linkedin.com/redir"]');
-            if (linkElem) {
-                const href = linkElem.href;
-                if (!href.includes('miniProfile')) url = href.split('?')[0];
+            let date = '';
+            for (let i = 1; i < texts.length && i < 4; i++) {
+                if (isDateLike(texts[i])) { date = texts[i]; break; }
             }
 
-            // Description: text between the top title and the Skills row
             let description = '';
-            try {
-                // Prefer structured sub-components if available
-                const sub = item.querySelector('.pvs-entity__sub-components');
-                if (sub) {
-                    const rowItems = Array.from(sub.querySelectorAll('li.pvs-list__item--with-top-padding'));
-                    // Find index of the first skills row
-                    const skillsIndex = rowItems.findIndex(li => /\bSkills:\b/i.test(li.textContent || ''));
-                    // Consider rows before the skills row (or all rows if none)
-                    const candidateRows = (skillsIndex === -1 ? rowItems : rowItems.slice(0, skillsIndex))
-                        // Skip link/thumbnail rows
-                        .filter(li => !li.querySelector('a.optional-action-target-wrapper'));
-
-                    const parts = [];
-                    for (const li of candidateRows) {
-                        const span = li.querySelector('span[aria-hidden="true"]');
-                        const text = (span?.innerText || span?.textContent || li.innerText || li.textContent || '')
-                            .replace(/\r\n?/g, '\n')
-                            .split('\n')
-                            .map(s => s.trim())
-                            .filter(Boolean)
-                            .join('\n');
-                        if (!text) continue;
-                        if (/\bSkills:\b/i.test(text)) continue;
-                        // Avoid repeating the title or date
-                        if (text === title || text === date) continue;
-                        parts.push(text);
-                    }
-                    if (parts.length) {
-                        description = parts.join('\n').trim();
-                    }
-                }
-            } catch (e) {
-                // ignore
-            }
-            if (!description) {
-                // Fallbacks: explicit expandable text or text-based heuristic
-                const descElem = item.querySelector('.inline-show-more-text');
-                if (descElem) {
-                    const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
-                    description = raw
-                        .split('\n')
-                        .map(s => s.trim())
-                        .filter(Boolean)
-                        .join('\n');
-                } else {
-                    description = lines
-                        .filter(l => l !== title && l !== date && !/\bSkills:\b/i.test(l))
-                        .join('\n')
-                        .substring(0, 300)
-                        .trim();
-                }
-            }
-            // Ensure we never carry over a trailing Skills label into description
-            if (description && /Skills:/i.test(description)) {
-                const cut = description.search(/Skills:/i);
-                if (cut !== -1) description = description.slice(0, cut).trim();
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) {
+                description = (descSpan.innerText || descSpan.textContent || '').trim();
             }
 
-            // Extract contextual skills (same approach as experiences)
+            let url = '';
+            const allLinks = item.querySelectorAll('a[href]');
+            for (const a of allLinks) {
+                const href = a.href || '';
+                if (href && !href.includes('linkedin.com/in/') && !href.includes('miniProfile')) {
+                    url = href.split('?')[0];
+                    break;
+                }
+            }
+
             let contextualSkills = [];
             try {
-                // 1) Direct span containing the explicit label 'Skills:'
-                const skillSpan = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                    .find(s => /\bSkills:\b/i.test(s.textContent || ''));
-                if (skillSpan) {
-                    const text = (skillSpan.textContent || '').replace(/^[\s\S]*?Skills:\s*/i, '').trim();
-                    const parts = text.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                    const seen = new Set();
-                    contextualSkills = parts.filter(p => {
-                        const key = p.toLowerCase();
-                        if (seen.has(key)) return false;
-                        seen.add(key);
-                        return true;
-                    });
+                const skillsContainer = item.querySelector(
+                    '[data-view-name*="projects-see-skills"], [data-view-name*="see-skills-button"]'
+                );
+                if (skillsContainer) {
+                    contextualSkills = parseSkillsText((skillsContainer.textContent || '').trim());
                 }
-                // 2) Rows with label (projects sometimes use generic rows)
                 if (!contextualSkills.length) {
-                    const rows = Array.from(item.querySelectorAll('.display-flex.align-items-center.t-14.t-normal.t-black'))
-                        .filter(row => /\bSkills:\b/i.test(row.textContent || ''));
-                    for (const row of rows) {
-                        const strong = row.querySelector('strong');
-                        const container = strong ? strong.parentElement : row;
-                        const raw = (container?.textContent || '').replace(/\s+/g, ' ').trim();
-                        const m = raw.match(/Skills:\s*(.*)$/i);
-                        if (m) {
-                            const stripped = m[1].trim();
-                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                            const seen = new Set();
-                            const tokens = parts.filter(p => {
-                                const key = p.toLowerCase();
-                                if (seen.has(key)) return false;
-                                seen.add(key);
-                                return true;
-                            });
-                            if (tokens.length) {
-                                contextualSkills = tokens;
-                                break;
-                            }
-                        }
-                    }
+                    const full = (item.innerText || '');
+                    const mt = full.match(/Skills:\s*(.+?)(?:\r?\n|$)/i);
+                    if (mt && mt[1]) contextualSkills = parseSkillsText(mt[1].trim());
                 }
-                // 3) Fallback: any strong label with 'Skills:'
-                if (!contextualSkills.length) {
-                    const labels = Array.from(item.querySelectorAll('strong'))
-                        .filter(el => /\bSkills:\b/i.test(el.textContent || ''));
-                    for (const strong of labels) {
-                        const raw = (strong.parentElement?.textContent || '').replace(/\s+/g, ' ').trim();
-                        const m = raw.match(/Skills:\s*(.*)$/i);
-                        if (m) {
-                            const stripped = m[1].trim();
-                            const parts = stripped.split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                            const seen = new Set();
-                            const tokens = parts.filter(p => {
-                                const key = p.toLowerCase();
-                                if (seen.has(key)) return false;
-                                seen.add(key);
-                                return true;
-                            });
-                            if (tokens.length) {
-                                contextualSkills = tokens;
-                                break;
-                            }
-                        }
-                    }
-                }
-                // 4) Text-based fallback: scan inner text for a line starting with 'Skills:'
-                if (!contextualSkills.length) {
-                    const text = (item.innerText || item.textContent || '').trim();
-                    const mt = text.match(/Skills:\s*(.+?)(?:\r?\n|$)/i);
-                    if (mt && mt[1]) {
-                        const parts = mt[1].trim().split(/\s*(?:·|•|,|\|)\s*/).map(p => p.trim()).filter(Boolean);
-                        const seen = new Set();
-                        contextualSkills = parts.filter(p => {
-                            const key = p.toLowerCase();
-                            if (seen.has(key)) return false;
-                            if (/\bSkills:\b/i.test(p) || p.includes(' - ')) return false;
-                            seen.add(key);
-                            return true;
-                        });
-                    }
-                }
-            } catch (e) {
-                // ignore skills extraction errors for projects
+            } catch (e) { /* ignore */ }
+
+            if (title && !title.toLowerCase().includes('show all') && !title.toLowerCase().includes('see all')) {
+                projects.push({ title, date, description, url, contextual_skills: contextualSkills });
             }
-
-            const project = { title, date, description, url, contextual_skills: contextualSkills };
-
-            // Minimal filtering for debugging
-            const isGarbage =
-                title.startsWith('Someone at') ||
-                title.toLowerCase().includes('show all') ||
-                title.toLowerCase().includes('see all');
-
-            if (!isGarbage) {
-                projects.push(project);
-            }
-
-        } catch (e) {
-            console.error(`[Browser] Error processing item ${index}:`, e);
-        }
+        } catch (e) { /* ignore */ }
     });
 
     return projects;
 }
 
-/**
- * Extract skills data from LinkedIn details/skills page
- */
-function extractSkillsData() {
-    const skills = [];
-    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+// ─── Skills ────────────────────────────────────────────────────
 
-    // Get all skill items
-    // Skills page usually has sections (categories) or just a list
-    // We look for the bold text which is the skill name
-    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+function extractSkillsData() {
+    // ── Inline helpers ──
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    /**
+     * Extract association texts from a skill item's sub-components.
+     * Returns an array of strings like:
+     *   "2 experiences across Cosmic Wire Inc and 1 other company"  (old layout)
+     *   "3 experiences at Aize and 2 other companies"               (new SDUI layout)
+     *   "Machine Learning Lead at Buyaladdin.com, Inc"              (single experience, new SDUI)
+     */
+    function getAssociationTexts(item) {
+        const associations = [];
+        // Old layout: sub-components inside pvs-entity__sub-components
+        const subComponents = item.querySelector('.pvs-entity__sub-components');
+        if (subComponents) {
+            const subItems = subComponents.querySelectorAll('li');
+            subItems.forEach(li => {
+                const text = (li.textContent || '').replace(/\s+/g, ' ').trim();
+                // Match "N experience(s) across/at Company..." or "JobTitle at Company"
+                if (/\d+\s*experiences?\s*(across|at)\s/i.test(text)) {
+                    associations.push(text);
+                } else if (/\bat\b/i.test(text) && !/endorsement/i.test(text) && text.length < 200) {
+                    // Single experience association like "Machine Learning Lead at Buyaladdin.com, Inc"
+                    associations.push(text);
+                }
+            });
+        }
+        // New SDUI layout: look for all visible text nodes that describe experience associations
+        if (associations.length === 0) {
+            const allSpans = item.querySelectorAll('span');
+            const seen = new Set();
+            allSpans.forEach(span => {
+                // Skip hidden/duplicate aria spans
+                if (span.getAttribute('aria-hidden') === 'true') return;
+                if (span.classList.contains('visually-hidden')) return;
+                const text = (span.textContent || '').replace(/\s+/g, ' ').trim();
+                if (seen.has(text)) return;
+                seen.add(text);
+                if (/\d+\s*experiences?\s*(across|at)\s/i.test(text)) {
+                    associations.push(text);
+                } else if (/\bat\b/i.test(text) && !/endorsement/i.test(text) &&
+                           !/edit\s/i.test(text) && text.length > 5 && text.length < 200) {
+                    associations.push(text);
+                }
+            });
+        }
+        // Also check aria-hidden="true" spans for old layout (they contain the visible text)
+        if (associations.length === 0) {
+            const ariaSpans = item.querySelectorAll('span[aria-hidden="true"]');
+            ariaSpans.forEach(span => {
+                const text = (span.textContent || '').replace(/\s+/g, ' ').trim();
+                if (/\d+\s*experiences?\s*(across|at)\s/i.test(text)) {
+                    associations.push(text);
+                } else if (/\bat\b/i.test(text) && !/endorsement/i.test(text) &&
+                           !/edit\s/i.test(text) && text.length > 5 && text.length < 200) {
+                    associations.push(text);
+                }
+            });
+        }
+        return associations;
+    }
+
+    // ── Main logic ──
+    const skills = [];
+    const seenSkillNames = new Set();
+    const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+
+    // Skills page uses specific componentkey: com.linkedin.sdui.profile.skill(...)
+    let items = Array.from(main.querySelectorAll('div[componentkey*="com.linkedin.sdui.profile.skill"]'))
+        .filter(el => !(el.getAttribute('componentkey') || '').endsWith('-divider'));
+
+    // Deduplicate: outer wrapper contains inner div with same componentkey.
+    // Keep only the outermost (those whose parent doesn't also match).
+    if (items.length > 0) {
+        items = items.filter(el => {
+            let parent = el.parentElement;
+            while (parent && parent !== main) {
+                const pck = parent.getAttribute('componentkey') || '';
+                if (pck.includes('com.linkedin.sdui.profile.skill') && !pck.endsWith('-divider')) {
+                    return false; // this is the inner div; skip it
+                }
+                parent = parent.parentElement;
+            }
+            return true;
+        });
+    }
+
+    // Fallback: generic item detection
+    if (items.length === 0) {
+        items = findDetailPageItems();
+    }
 
     items.forEach(item => {
         try {
-            // Skill name is usually the first bold span
-            const skillNameElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-            let skillName = '';
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
 
-            if (skillNameElem) {
-                skillName = skillNameElem.textContent.trim();
-            } else {
-                // Fallback: look at all spans
-                const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                    .map(s => s.textContent.trim())
-                    .filter(t => t && t.length > 0);
-
-                if (allSpans.length > 0) {
-                    skillName = allSpans[0];
-                }
+            const skillName = texts[0] || '';
+            if (skillName &&
+                !skillName.toLowerCase().includes('endorsement') &&
+                !skillName.toLowerCase().includes('edit skill') &&
+                skillName.length > 1 &&
+                !seenSkillNames.has(skillName)) {
+                seenSkillNames.add(skillName);
+                const associations = getAssociationTexts(item);
+                skills.push({ name: skillName, associations });
             }
-
-            if (skillName && !skillName.toLowerCase().includes('endorsement')) {
-                // Check endorsement count if available (optional, but good for filtering/info)
-                // const endorsementElem = item.querySelector('a[href*="endorsement"] span[aria-hidden="true"]');
-
-                skills.push(skillName);
-            }
-        } catch (e) {
-            // Ignore
-        }
+        } catch (e) { /* ignore */ }
     });
 
-    // De-duplicate
-    return [...new Set(skills)];
+    return skills;
 }
 
-/**
- * Extract main profile data (top card, about, etc.)
- */
+// ─── Profile ───────────────────────────────────────────────────
+
 function extractProfileData() {
+    // ── Inline helpers ──
+    function isDateLike(text) {
+        return /\b\d{4}\b/.test(text) || /\bpresent\b/i.test(text);
+    }
+    function isLocationLike(text) {
+        return text.includes(',') && !/\b\d{4}\b/.test(text) && text.length < 120;
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const extractedData = {
         linkedinUrl: window.location.href.split('?')[0],
         name: '',
@@ -707,848 +861,985 @@ function extractProfileData() {
         timestamp: new Date().toISOString()
     };
 
-    // Profile image
-    const profileImg = document.querySelector('img.pv-top-card-profile-picture__image, button.pv-top-card-profile-picture img, img.pv-top-card-profile-picture__image--show');
-    if (profileImg) {
-        extractedData.image = profileImg.src || profileImg.getAttribute('data-delayed-url') || '';
+    // ── Profile Image ──
+    const photoImg = document.querySelector('[aria-label="Profile photo"] img') ||
+                     document.querySelector('[data-view-name="profile-top-card-member-photo"] img') ||
+                     document.querySelector('img[src*="profile-displayphoto-scale_400"]') ||
+                     document.querySelector('img[src*="profile-displayphoto"]');
+    if (photoImg) {
+        extractedData.image = photoImg.src || '';
     }
 
-    // Name
-    const nameSelectors = [
-        'h1.text-heading-xlarge',
-        'h1.inline.t-24',
-        '.pv-text-details__left-panel h1',
-        'div.mt2 h1',
-        '.artdeco-entity-lockup__title'
-    ];
-    for (const selector of nameSelectors) {
-        const elem = document.querySelector(selector);
-        if (elem && elem.textContent.trim()) {
-            extractedData.name = elem.textContent.trim();
-            break;
+    // ── Name ──
+    const topcard = document.querySelector('section[componentkey*="Topcard"]');
+    if (topcard) {
+        const h2 = topcard.querySelector('h2');
+        if (h2) extractedData.name = h2.textContent.trim();
+    }
+    if (!extractedData.name) {
+        const oldNameSelectors = [
+            'h1.text-heading-xlarge', 'h1.inline.t-24', '.pv-text-details__left-panel h1'
+        ];
+        for (const sel of oldNameSelectors) {
+            const elem = document.querySelector(sel);
+            if (elem && elem.textContent.trim()) { extractedData.name = elem.textContent.trim(); break; }
+        }
+    }
+    if (!extractedData.name) {
+        const mainArea = document.querySelector('[role="main"]') || document.querySelector('main') || document.body;
+        const sectionTitles = new Set([
+            'About', 'Experience', 'Education', 'Skills', 'Featured', 'Analytics',
+            'Suggested for you', 'Activity', 'Interests', 'Licenses & certifications',
+            'Honors & awards', 'Languages', 'Projects', 'Publications',
+            'Volunteer experience', 'Patents'
+        ]);
+        const h2s = mainArea.querySelectorAll('h2');
+        for (const h2 of h2s) {
+            const text = h2.textContent.trim();
+            if (sectionTitles.has(text)) continue;
+            if (/notification/i.test(text)) continue;
+            if (text.length > 1 && text.length < 100) { extractedData.name = text; break; }
         }
     }
 
-    // Headline
-    const headlineSelectors = [
-        '.text-body-medium.break-words',
-        'div.text-body-medium',
-        '.pv-text-details__left-panel .text-body-medium',
-        '.artdeco-entity-lockup__subtitle'
-    ];
-    for (const selector of headlineSelectors) {
-        const elem = document.querySelector(selector);
-        if (elem && elem.textContent.trim()) {
-            extractedData.headline = elem.textContent.trim();
-            break;
+    // ── Headline ──
+    if (topcard) {
+        const allPs = Array.from(topcard.querySelectorAll('p'));
+        for (const p of allPs) {
+            const text = p.textContent.trim();
+            if (text.length < 10) continue;
+            if (p.closest('button') || p.closest('a')) continue;
+            if (text === extractedData.name) continue;
+            if (text.includes('connection') || text.includes('Contact info')) continue;
+            if (text.length > 15) { extractedData.headline = text; break; }
+        }
+    }
+    if (!extractedData.headline) {
+        const headlineSelectors = ['.text-body-medium.break-words', 'div.text-body-medium'];
+        for (const sel of headlineSelectors) {
+            const elem = document.querySelector(sel);
+            if (elem && elem.textContent.trim()) { extractedData.headline = elem.textContent.trim(); break; }
         }
     }
 
-    // Location
-    const locationSelectors = [
-        '.text-body-small.inline.t-black--light.break-words',
-        'span.text-body-small',
-        '.pv-text-details__left-panel span.text-body-small'
-    ];
-    for (const selector of locationSelectors) {
-        const elem = document.querySelector(selector);
-        if (elem && elem.textContent.trim() && !elem.textContent.includes('Contact info')) {
-            extractedData.location = elem.textContent.trim();
-            break;
+    // ── Location ──
+    if (topcard) {
+        const allPs = Array.from(topcard.querySelectorAll('p'));
+        for (const p of allPs) {
+            const text = p.textContent.trim();
+            if (p.closest('button') || p.closest('a')) continue;
+            if (text.includes(',') && text.length < 60 &&
+                text !== extractedData.headline && text !== extractedData.name) {
+                extractedData.location = text;
+                break;
+            }
         }
     }
-
-    // About section
-    const aboutSection = document.querySelector('#about');
-    if (aboutSection) {
-        const aboutContainer = aboutSection.closest('section');
-        if (aboutContainer) {
-            const aboutText = aboutContainer.querySelector('.inline-show-more-text, .pv-shared-text-with-see-more, .display-flex.full-width');
-            if (aboutText) {
-                try {
-                    const clone = aboutText.cloneNode(true);
-                    // Remove any See more/Show more controls that might be inside
-                    Array.from(clone.querySelectorAll('button, a')).forEach(el => {
-                        const t = (el.textContent || '').trim().toLowerCase();
-                        if (/(see|show) more/.test(t)) {
-                            el.remove();
-                        }
-                    });
-                    // Prefer innerHTML to preserve formatting (e.g., <br>, <strong>)
-                    let html = clone.innerHTML || '';
-                    // Normalize excessive breaks/spaces
-                    html = html
-                        .replace(/\u00A0/g, ' ')
-                        .replace(/(\s*<br\s*\/?>(\s|\u00A0)*){3,}/gi, '<br><br>')
-                        .trim();
-                    extractedData.aboutHtml = html;
-
-                    // Also provide a text fallback that preserves newlines
-                    let text = clone.textContent || '';
-                    text = text
-                        .replace(/\r\n/g, '\n')
-                        .replace(/\n{3,}/g, '\n\n')
-                        .replace(/[ \t\f\v]+\n/g, '\n')
-                        .replace(/\n[ \t\f\v]+/g, '\n')
-                        .trim();
-                    extractedData.about = text;
-                } catch (e) {
-                    // Fallback to plain text if anything goes wrong
-                    extractedData.about = aboutText.textContent.trim();
-                }
+    if (!extractedData.location) {
+        const locSelectors = [
+            '.text-body-small.inline.t-black--light.break-words', 'span.text-body-small'
+        ];
+        for (const sel of locSelectors) {
+            const elem = document.querySelector(sel);
+            if (elem && elem.textContent.trim() && !elem.textContent.includes('Contact info')) {
+                extractedData.location = elem.textContent.trim();
+                break;
             }
         }
     }
 
-    // Experience - improved to handle nested positions at the same company
-    const expSection = document.querySelector('#experience');
-    if (expSection) {
-        const expContainer = expSection.closest('section');
-        if (expContainer) {
-            const items = expContainer.querySelectorAll('li.artdeco-list__item');
+    // ── About Section ──
+    const sections = document.querySelectorAll('section[componentkey]');
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const sectionTitle = h2 ? h2.textContent.trim() : '';
 
-            items.forEach((item) => {
+        if (ck.includes('About') || sectionTitle === 'About') {
+            const aboutText = section.querySelector('[data-testid="expandable-text-box"]');
+            if (aboutText) {
+                extractedData.about = (aboutText.innerText || aboutText.textContent || '').trim();
                 try {
-                    // Check if this is a grouped experience (multiple positions at same company)
-                    const groupedRoles = item.querySelectorAll('ul.pvs-list li.pvs-list__paged-list-item');
-
-                    if (groupedRoles.length > 0) {
-                        // Multiple positions at same company
-                        const companyName = item.querySelector('.t-bold span')?.textContent?.trim() || '';
-                        const totalDuration = item.querySelector('.t-14.t-normal span')?.textContent?.trim() || '';
-
-                        groupedRoles.forEach(role => {
-                            try {
-                                const roleSpans = Array.from(role.querySelectorAll('span[aria-hidden="true"]'))
-                                    .map(s => s.textContent.trim())
-                                    .filter(t => t && t.length > 0);
-
-                                const experience = {
-                                    title: roleSpans[0] || '',
-                                    company: companyName,
-                                    duration: roleSpans.find(s => /\d{4}|Present|yr|mo|year|month/i.test(s)) || '',
-                                    location: roleSpans.find(s => s.includes(',') && !/\d{4}/.test(s) && s.length < 100) || '',
-                                    description: ''
-                                };
-
-                                const descElem = role.querySelector('.inline-show-more-text, .pvs-list__outer-container');
-                                if (descElem) {
-                                    let d = descElem.textContent.trim().replace(/\s+/g, ' ');
-                                    if (/Skills:/i.test(d)) {
-                                        const cut = d.search(/Skills:/i);
-                                        if (cut !== -1) d = d.slice(0, cut).trim();
-                                    }
-                                    experience.description = d;
-                                }
-
-                                if (experience.title) {
-                                    extractedData.experience.push(experience);
-                                }
-                            } catch (e) {
-                                console.error('Error parsing grouped experience:', e);
-                            }
-                        });
-                    } else {
-                        // Single position
-                        const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                            .map(s => s.textContent.trim())
-                            .filter(t => t && t.length > 0);
-
-                        const titleElem = item.querySelector('.mr1.t-bold span, .t-bold span');
-                        const companyElem = item.querySelector('.t-14.t-normal span, .t-14 span');
-
-                        const experience = {
-                            title: titleElem?.textContent?.trim() || allSpans[0] || '',
-                            company: companyElem?.textContent?.trim() || allSpans[1] || '',
-                            duration: '',
-                            location: '',
-                            description: ''
-                        };
-
-                        const durationPattern = /\d{4}|Present|yr|mo|year|month/i;
-                        const durationSpan = allSpans.find(s => durationPattern.test(s));
-                        if (durationSpan) experience.duration = durationSpan;
-
-                        const locationSpan = allSpans.find(s =>
-                            s.includes(',') &&
-                            !/\d{4}/.test(s) &&
-                            s.length < 100 &&
-                            s !== experience.title &&
-                            s !== experience.company
-                        );
-                        if (locationSpan) experience.location = locationSpan;
-
-                        const descElem = item.querySelector('.inline-show-more-text, .t-14.t-normal.t-black, .pvs-list__outer-container');
-                        if (descElem) {
-                            let d = descElem.textContent.trim().replace(/\s+/g, ' ');
-                            if (/Skills:/i.test(d)) {
-                                const cut = d.search(/Skills:/i);
-                                if (cut !== -1) d = d.slice(0, cut).trim();
-                            }
-                            experience.description = d;
-                        }
-
-                        if (experience.title || experience.company) {
-                            extractedData.experience.push(experience);
-                        }
+                    const clone = aboutText.cloneNode(true);
+                    let html = clone.innerHTML || '';
+                    html = html.replace(/\u00A0/g, ' ').trim();
+                    extractedData.aboutHtml = html;
+                } catch (e) { extractedData.aboutHtml = extractedData.about; }
+            } else {
+                const ps = section.querySelectorAll('p');
+                for (const p of ps) {
+                    const text = (p.textContent || '').trim();
+                    if (text.length > 50 && text !== sectionTitle && !p.closest('button')) {
+                        extractedData.about = text;
+                        break;
                     }
-                } catch (e) {
-                    console.error('Error parsing experience:', e);
                 }
-            });
+            }
+            break;
+        }
+    }
+    if (!extractedData.about) {
+        const aboutSection = document.querySelector('#about');
+        if (aboutSection) {
+            const aboutContainer = aboutSection.closest('section');
+            if (aboutContainer) {
+                const aboutText = aboutContainer.querySelector('.inline-show-more-text, .pv-shared-text-with-see-more');
+                if (aboutText) extractedData.about = aboutText.textContent.trim();
+            }
         }
     }
 
-    // Education - improved extraction
-    const eduSection = document.querySelector('#education');
-    if (eduSection) {
-        const eduContainer = eduSection.closest('section');
-        if (eduContainer) {
-            const items = eduContainer.querySelectorAll('li.artdeco-list__item');
+    // ── Experience section (preview on profile page) ──
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const title = h2 ? h2.textContent.trim() : '';
 
-            items.forEach((item) => {
+        if (ck.includes('Experience') || title === 'Experience') {
+            const expItems = section.querySelectorAll('div[componentkey^="entity-collection-item"]');
+            expItems.forEach(expItem => {
                 try {
-                    const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                        .map(s => s.textContent.trim())
-                        .filter(t => t && t.length > 0 && !t.includes('·')); // Filter out separator dots
-
-                    // Try to get school name from bold text first
-                    const schoolElem = item.querySelector('.t-bold span, .mr1.t-bold span');
-                    const schoolName = schoolElem?.textContent?.trim() || allSpans[0] || '';
-
-                    const education = {
-                        school: schoolName,
-                        degree: '',
-                        field: '',
-                        duration: '',
-                        grade: '',
-                        activities: '',
-                        description: ''
-                    };
-
-                    // Try to find degree and field
-                    if (allSpans.length > 1) {
-                        // Usually: [School, Degree, Field, Duration, ...]
-                        const degreeField = allSpans[1];
-                        if (degreeField && degreeField.includes(',')) {
-                            const parts = degreeField.split(',').map(p => p.trim());
-                            education.degree = parts[0] || '';
-                            education.field = parts[1] || '';
-                        } else {
-                            education.degree = degreeField || '';
-                            if (allSpans[2] && !allSpans[2].match(/\d{4}/)) {
-                                education.field = allSpans[2];
-                            }
-                        }
+                    const texts = getMetadataParagraphs(expItem);
+                    if (texts.length < 2) return;
+                    const exp = { title: texts[0] || '', company: '', duration: '', location: '', description: '' };
+                    for (let i = 1; i < texts.length && i < 5; i++) {
+                        if (isDateLike(texts[i]) && !exp.duration) exp.duration = texts[i];
+                        else if (isLocationLike(texts[i]) && !exp.location) exp.location = texts[i];
+                        else if (!exp.company) exp.company = texts[i];
                     }
+                    const desc = expItem.querySelector('[data-testid="expandable-text-box"]');
+                    if (desc) exp.description = (desc.innerText || desc.textContent || '').trim();
+                    if (exp.title) extractedData.experience.push(exp);
+                } catch (e) { /* ignore */ }
+            });
+            break;
+        }
+    }
 
-                    // Find duration (contains years)
-                    const durationSpan = allSpans.find(s => /\d{4}/.test(s) || s.match(/\d{4}\s*-\s*\d{4}/));
-                    if (durationSpan) education.duration = durationSpan;
+    // ── Education section (preview on profile page) ──
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const title = h2 ? h2.textContent.trim() : '';
 
-                    // Find grade/GPA
-                    const gradeSpan = allSpans.find(s =>
-                        s.toLowerCase().includes('grade') ||
-                        s.toLowerCase().includes('gpa') ||
-                        s.match(/\d\.\d/)
-                    );
-                    if (gradeSpan) education.grade = gradeSpan;
-
-                    // Get full description/activities
-                    const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container');
-                    if (descElem) {
-                        const fullText = descElem.textContent.trim().replace(/\s+/g, ' ');
-                        // Try to separate activities and description
-                        if (fullText.toLowerCase().includes('activities')) {
-                            const parts = fullText.split(/activities and societies:/i);
-                            if (parts.length > 1) {
-                                education.activities = parts[1].trim();
-                                education.description = parts[0].trim();
+        if (ck.includes('Education') || title === 'Education') {
+            const eduItems = section.querySelectorAll('div[componentkey^="entity-collection-item"]');
+            eduItems.forEach(eduItem => {
+                try {
+                    const texts = getMetadataParagraphs(eduItem);
+                    if (texts.length === 0) return;
+                    const edu = { school: texts[0] || '', degree: '', field: '', duration: '', description: '' };
+                    for (let i = 1; i < texts.length && i < 5; i++) {
+                        if (isDateLike(texts[i]) && !edu.duration) edu.duration = texts[i];
+                        else if (!edu.degree) {
+                            const dt = texts[i];
+                            if (dt.includes(',')) {
+                                const parts = dt.split(',');
+                                edu.degree = (parts.shift() || '').trim();
+                                edu.field = parts.join(',').trim();
                             } else {
-                                education.description = fullText;
+                                edu.degree = dt;
                             }
-                        } else {
-                            education.description = fullText;
                         }
                     }
-
-                    if (education.school) {
-                        extractedData.education.push(education);
-                    }
-                } catch (e) {
-                    console.error('Error parsing education:', e);
-                }
+                    if (edu.school) extractedData.education.push(edu);
+                } catch (e) { /* ignore */ }
             });
+            break;
         }
     }
 
-    // Skills
-    const skillsSection = document.querySelector('#skills');
-    if (skillsSection) {
-        const skillsContainer = skillsSection.closest('section');
-        if (skillsContainer) {
-            const skillElems = skillsContainer.querySelectorAll('.mr1.t-bold span[aria-hidden="true"], .artdeco-list__item .t-bold span');
+    // ── Skills section (preview on profile page) ──
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const title = h2 ? h2.textContent.trim() : '';
 
-            skillElems.forEach(elem => {
-                const skill = elem.textContent.trim();
-                if (skill && !skill.toLowerCase().includes('endorsement') && skill.length > 1) {
-                    extractedData.skills.push(skill);
-                }
-            });
-
-            extractedData.skills = [...new Set(extractedData.skills)];
-        }
-    }
-
-    // Certifications
-    const certsSection = document.querySelector('#licenses_and_certifications');
-    if (certsSection) {
-        const certsContainer = certsSection.closest('section');
-        if (certsContainer) {
-            const items = certsContainer.querySelectorAll('li.artdeco-list__item');
-
-            items.forEach((item) => {
+        if (ck.includes('Skills') || title === 'Skills') {
+            const skillItems = section.querySelectorAll('div[componentkey^="entity-collection-item"]');
+            skillItems.forEach(skillItem => {
                 try {
-                    const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                        .map(s => s.textContent.trim())
-                        .filter(t => t && t.length > 0);
-
-                    if (allSpans.length > 0) {
-                        const cert = {
-                            name: allSpans[0] || '',
-                            issuer: allSpans[1] || '',
-                            date: allSpans.find(s => /\d{4}|Issued/.test(s)) || ''
-                        };
-
-                        const link = item.querySelector('a[href*="credential"]');
-                        if (link) cert.url = link.href;
-
-                        if (cert.name) {
-                            extractedData.certifications.push(cert);
+                    const texts = getMetadataParagraphs(skillItem);
+                    if (texts.length > 0 && texts[0]) {
+                        const name = texts[0];
+                        if (!name.toLowerCase().includes('endorsement') && name.length > 1) {
+                            extractedData.skills.push(name);
                         }
                     }
-                } catch (e) {
-                    console.error('Error parsing certification:', e);
-                }
+                } catch (e) { /* ignore */ }
             });
+            extractedData.skills = [...new Set(extractedData.skills)];
+            break;
         }
     }
 
-    // Patents - extract from the profile page
-    try {
-        const patentsData = extractPatentsData();
-        if (patentsData && patentsData.length > 0) {
-            extractedData.patents = patentsData;
+    // ── Certifications section (preview on profile page) ──
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const title = h2 ? h2.textContent.trim() : '';
+
+        if (ck.includes('Certification') || ck.includes('License') ||
+            title === 'Licenses & certifications' || title === 'Certifications') {
+            const certItems = section.querySelectorAll('div[componentkey^="entity-collection-item"]');
+            certItems.forEach(certItem => {
+                try {
+                    const texts = getMetadataParagraphs(certItem);
+                    if (texts.length > 0) {
+                        const cert = {
+                            name: texts[0] || '',
+                            issuer: texts[1] || '',
+                            date: texts.find(s => /\d{4}|Issued/.test(s)) || ''
+                        };
+                        if (cert.name) extractedData.certifications.push(cert);
+                    }
+                } catch (e) { /* ignore */ }
+            });
+            break;
         }
-    } catch (e) {
-        console.error('Error extracting patents:', e);
+    }
+
+    // ── Patents section (preview on profile page) ──
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const title = h2 ? h2.textContent.trim() : '';
+
+        if (ck.includes('Patent') || title === 'Patents') {
+            const patentItems = section.querySelectorAll('div[componentkey^="entity-collection-item"]');
+            patentItems.forEach(patentItem => {
+                try {
+                    const texts = getMetadataParagraphs(patentItem);
+                    if (texts.length > 0) {
+                        const patent = { title: texts[0] || '', number: '', issuer: '', date: '', url: '', description: '' };
+                        for (let i = 1; i < texts.length && i < 5; i++) {
+                            const t = texts[i];
+                            if (/\d{4}/.test(t) && !patent.date) patent.date = t;
+                        }
+                        const descSpan = patentItem.querySelector('[data-testid="expandable-text-box"]');
+                        if (descSpan) patent.description = (descSpan.innerText || descSpan.textContent || '').trim();
+                        if (patent.title) extractedData.patents.push(patent);
+                    }
+                } catch (e) { /* ignore */ }
+            });
+            break;
+        }
     }
 
     return extractedData;
 }
 
-/**
- * Extract volunteering data from LinkedIn details/volunteering-experiences page
- */
+// ─── Volunteering ──────────────────────────────────────────────
+
 function extractVolunteeringData() {
+    // ── Inline helpers ──
+    function isDateLike(text) {
+        return /\b\d{4}\b/.test(text) || /\bpresent\b/i.test(text);
+    }
+    function parseDateRange(text) {
+        if (!text) return { range: '', startDate: '', endDate: '', duration: '' };
+        let t = text.replace(/\s+/g, ' ').trim();
+        let duration = '';
+        if (t.includes(' · ')) {
+            const parts = t.split(' · ');
+            t = parts[0].trim();
+            duration = parts.slice(1).join(' · ').trim();
+        }
+        if (!/\b\d{4}\b/.test(t) && !/present/i.test(t)) {
+            return { range: '', startDate: '', endDate: '', duration: '' };
+        }
+        const splitter = /\s[-–—]\s/;
+        let startDate = '', endDate = '';
+        if (splitter.test(t)) {
+            const [start, end] = t.split(splitter);
+            startDate = (start || '').trim();
+            endDate = (end || '').trim();
+        } else {
+            startDate = t;
+        }
+        const range = endDate ? `${startDate} - ${endDate}` : startDate;
+        return { range, startDate, endDate, duration };
+    }
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const volunteering = [];
-    const mainContent = document.querySelector('main') || document.body;
-    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+    const items = findDetailPageItems();
 
     items.forEach(item => {
         try {
-            // Get all visible text spans
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
-                .filter(t => t && t.length > 0);
+            const texts = getMetadataParagraphs(item);
+            if (texts.length < 2) return;
 
-            if (allSpans.length < 2) return; // Need at least role and organization
+            const vol = { role: texts[0] || '', organization: '', date: '', duration: '', cause: '', description: '' };
+            const used = new Set([0]);
 
-            const vol = {
-                role: allSpans[0] || '',
-                organization: allSpans[1] || '',
-                date: '',
-                duration: '',
-                cause: '',
-                description: ''
-            };
-
-            // 3rd span is usually date/duration
-            // Example: "Nov 2022 - Present · 3 yrs 2 mos"
-            const dateSpan = allSpans.find(s => /\d{4}/.test(s) && (s.includes(' - ') || s.includes(' · ')));
-            if (dateSpan) {
-                vol.date = dateSpan;
-                // split duration if present
-                if (dateSpan.includes(' · ')) {
-                    // "Nov 2022 - Present · 3 yrs 2 mos" -> date: "Nov 2022 - Present", duration: "3 yrs 2 mos"
-                    const parts = dateSpan.split(' · ');
-                    vol.date = parts[0];
-                    vol.duration = parts[1];
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                if (isDateLike(texts[i])) {
+                    const parsed = parseDateRange(texts[i]);
+                    vol.date = parsed.range || texts[i];
+                    vol.duration = parsed.duration || '';
+                    used.add(i);
+                    break;
                 }
             }
-
-            // 4th span might be Cause (e.g. "Environment") if it's not a date, not role, not org
-            const causeCandidate = allSpans.find(s =>
-                s !== vol.role &&
-                s !== vol.organization &&
-                s !== dateSpan &&
-                !/\d{4}/.test(s) &&
-                s.length < 50
-            );
-            if (causeCandidate) {
-                vol.cause = causeCandidate;
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                if (used.has(i)) continue;
+                if (!isDateLike(texts[i])) { vol.organization = texts[i]; used.add(i); break; }
+            }
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                if (used.has(i)) continue;
+                if (!isDateLike(texts[i]) && texts[i].length < 50) { vol.cause = texts[i]; used.add(i); break; }
             }
 
-            // Description: prefer explicit expandable text
-            let description = '';
-            const descElem = item.querySelector('.inline-show-more-text');
-            if (descElem) {
-                const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
-                description = raw
-                    .split('\n')
-                    .map(s => s.trim())
-                    .filter(Boolean)
-                    .join('\n');
-            }
-            // Fallback: parse sub-component rows under the volunteering item
-            if (!description) {
-                try {
-                    const sub = item.querySelector('.pvs-entity__sub-components');
-                    if (sub) {
-                        const rows = Array.from(sub.querySelectorAll('li.pvs-list__item--with-top-padding'));
-                        const parts = [];
-                        for (const li of rows) {
-                            // Prefer visible span text first
-                            const span = li.querySelector('span[aria-hidden="true"]');
-                            const text = (span?.innerText || span?.textContent || li.innerText || li.textContent || '')
-                                .replace(/\r\n?/g, '\n')
-                                .split('\n')
-                                .map(s => s.trim())
-                                .filter(Boolean)
-                                .join('\n');
-                            if (!text) continue;
-                            // Skip pure cause rows or duplicates of role/org/date/cause
-                            const t = text.trim();
-                            if (!t) continue;
-                            const lower = t.toLowerCase();
-                            const isDateLike = /\b\d{4}\b/.test(t) || /present/i.test(t);
-                            if (isDateLike) continue;
-                            if (t === vol.role || t === vol.organization || t === vol.date || t === vol.duration) continue;
-                            if (vol.cause && (t === vol.cause || lower === vol.cause.toLowerCase())) continue;
-                            // Skip obvious UI rows
-                            if (/add (?:media|link)|show more|see more/i.test(t)) continue;
-                            parts.push(t);
-                        }
-                        if (parts.length) {
-                            // Join parts preserving line breaks
-                            description = parts.join('\n').trim();
-                        }
-                    }
-                } catch (e) {
-                    // ignore sub-component parsing errors
-                }
-            }
-            // Last resort: pick a long span that's not metadata
-            if (!description) {
-                const longText = allSpans.find(s =>
-                    s.length > 40 &&
-                    s !== vol.role &&
-                    s !== vol.organization &&
-                    s !== vol.date &&
-                    s !== vol.duration &&
-                    s !== vol.cause
-                );
-                if (longText) description = longText;
-            }
-            vol.description = description;
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) vol.description = (descSpan.innerText || descSpan.textContent || '').trim();
 
-            // Filter out garbage/viewers
-            const isGarbage =
-                vol.role.startsWith('Someone at') ||
-                vol.organization.startsWith('Someone at');
-
-            if (!isGarbage && vol.role) {
-                volunteering.push(vol);
-            }
-        } catch (e) {
-            console.error('Error extracting volunteering item:', e);
-        }
+            if (vol.role && !vol.role.startsWith('Someone at')) volunteering.push(vol);
+        } catch (e) { /* ignore */ }
     });
 
     return volunteering;
 }
 
-/**
- * Extract publication data from LinkedIn details/publications page
- */
+// ─── Publications ──────────────────────────────────────────────
+
 function extractPublicationsData() {
+    // ── Inline helpers ──
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const publications = [];
-    const mainContent = document.querySelector('main') || document.body;
-    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+    const items = findDetailPageItems();
 
     items.forEach(item => {
         try {
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
-                .filter(t => t && t.length > 0);
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
 
-            if (allSpans.length === 0) return;
+            const pub = { title: texts[0] || '', publisher: '', date: '', description: '', url: '' };
 
-            const pub = {
-                title: '',
-                publisher: '',
-                date: '',
-                description: '',
-                url: ''
-            };
-
-            // Title is usually the first bold span or the first span
-            const titleElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-            if (titleElem) {
-                pub.title = titleElem.textContent.trim();
-            } else {
-                pub.title = allSpans[0];
+            for (let i = 1; i < texts.length && i < 4; i++) {
+                const t = texts[i];
+                if (t.includes('·')) {
+                    const parts = t.split('·').map(s => s.trim());
+                    const datePart = parts.find(p => /\d{4}/.test(p));
+                    const pubPart = parts.find(p => p !== datePart);
+                    if (datePart && !pub.date) pub.date = datePart;
+                    if (pubPart && !pub.publisher) pub.publisher = pubPart;
+                } else if (/\d{4}/.test(t) && !pub.date) {
+                    pub.date = t;
+                } else if (!pub.publisher) {
+                    pub.publisher = t;
+                }
             }
 
-            // Second span usually contains publisher and date, possibly separated by '·'
-            const subtitle = allSpans.find(s => s !== pub.title && (/\d{4}/.test(s) || s.includes('·')));
-            if (subtitle) {
-                if (subtitle.includes('·')) {
-                    const parts = subtitle.split('·').map(s => s.trim());
-                    // Assume format: Publisher · Date or similar
-                    // Heuristic: Date usually has digits, Publisher usually doesn't (or fewer)
-                    // But date could be "Nov 3, 2022"
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) pub.description = (descSpan.innerText || descSpan.textContent || '').trim();
 
-                    const datePart = parts.find(p => /\d{4}/.test(p));
-                    const publisherPart = parts.find(p => p !== datePart);
-
-                    if (datePart) pub.date = datePart;
-                    if (publisherPart) pub.publisher = publisherPart;
-                } else {
-                    // Just date?
-                    if (/\d{4}/.test(subtitle)) {
-                        pub.date = subtitle;
-                    } else {
-                        pub.publisher = subtitle;
+            const showPub = item.querySelector('a[data-view-name*="publication"]');
+            if (showPub) pub.url = showPub.href;
+            if (!pub.url) {
+                const links = item.querySelectorAll('a[href]');
+                for (const a of links) {
+                    const href = a.href || '';
+                    if (href && !href.includes('linkedin.com/in/') && !href.includes('miniProfile')) {
+                        pub.url = href;
+                        break;
                     }
                 }
             }
 
-            // URL
-            const linkElem = item.querySelector('a.optional-action-target-wrapper, a[href*="publication"]');
-            if (linkElem) {
-                pub.url = linkElem.href;
-            }
-
-            // Description
-            const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
-            if (descElem) {
-                const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
-                pub.description = raw
-                    .split('\n')
-                    .map(s => s.trim())
-                    .filter(Boolean)
-                    .join('\n');
-            }
-
-            // Filter garbage
-            if (pub.title && !pub.title.startsWith('Someone at')) {
-                publications.push(pub);
-            }
-
-        } catch (e) {
-            console.error('Error extracting publication item:', e);
-        }
+            if (pub.title && !pub.title.startsWith('Someone at')) publications.push(pub);
+        } catch (e) { /* ignore */ }
     });
 
     return publications;
 }
 
-/**
- * Extract honors data from LinkedIn details/honors page
- */
+// ─── Honors ────────────────────────────────────────────────────
+
 function extractHonorsData() {
+    // ── Inline helpers ──
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const honors = [];
-    const mainContent = document.querySelector('main') || document.body;
-    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+    const items = findDetailPageItems();
 
     items.forEach(item => {
         try {
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
-                .filter(t => t && t.length > 0);
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
 
-            if (allSpans.length === 0) return;
+            const honor = { title: texts[0] || '', issuer: '', date: '', associated_with: '', description: '' };
 
-            const honor = {
-                title: '',
-                issuer: '',
-                date: '',
-                description: ''
-            };
-
-            // Title is usually the first bold span
-            const titleElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-            if (titleElem) {
-                honor.title = titleElem.textContent.trim();
-            } else {
-                honor.title = allSpans[0];
-            }
-
-            // Issuer and Date are usually in the second span, separated by '·' or just one of them
-            // Example: "Issued by The University of Edinburgh · Jun 2018"
-            // or just "Issued by ..."
-
-            const subtitle = allSpans.find(s => s !== honor.title && (s.includes('Issued by') || /\d{4}/.test(s)));
-
-            if (subtitle) {
-                if (subtitle.includes('·')) {
-                    const parts = subtitle.split('·').map(s => s.trim());
-                    const datePart = parts.find(p => /\d{4}/.test(p));
-                    const issuerPart = parts.find(p => p.includes('Issued by'));
-
-                    if (datePart) honor.date = datePart;
-                    if (issuerPart) honor.issuer = issuerPart.replace('Issued by', '').trim();
-                } else {
-                    if (subtitle.includes('Issued by')) {
-                        honor.issuer = subtitle.replace('Issued by', '').trim();
-                    } else if (/\d{4}/.test(subtitle)) {
-                        honor.date = subtitle;
+            for (let i = 1; i < texts.length && i < 6; i++) {
+                const t = texts[i];
+                if (t.startsWith('Associated with')) {
+                    honor.associated_with = t.replace(/^Associated with\s*/i, '').trim();
+                } else if (t.includes('Issued by') || t.includes('·')) {
+                    if (t.includes('·')) {
+                        const parts = t.split('·').map(s => s.trim());
+                        const datePart = parts.find(p => /\d{4}/.test(p));
+                        const issuerPart = parts.find(p => p.includes('Issued by'));
+                        if (datePart) honor.date = datePart;
+                        if (issuerPart) honor.issuer = issuerPart.replace(/^Issued by\s*/i, '').trim();
+                        else {
+                            const other = parts.find(p => p !== datePart);
+                            if (other) honor.issuer = other.replace(/^Issued by\s*/i, '').trim();
+                        }
+                    } else {
+                        honor.issuer = t.replace(/^Issued by\s*/i, '').trim();
                     }
+                } else if (/\d{4}/.test(t) && !honor.date) {
+                    honor.date = t;
                 }
             }
 
-            // Description extraction
-            const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
-            if (descElem) {
-                const raw = (descElem.innerText || descElem.textContent || '').replace(/\r\n?/g, '\n');
-                honor.description = raw
-                    .split('\n')
-                    .map(s => s.trim())
-                    .filter(Boolean)
-                    .join('\n');
-            }
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) honor.description = (descSpan.innerText || descSpan.textContent || '').trim();
 
-            if (honor.title && !honor.title.startsWith('Someone at')) {
-                honors.push(honor);
-            }
-
-        } catch (e) {
-            console.error('Error extracting honor item:', e);
-        }
+            if (honor.title && !honor.title.startsWith('Someone at')) honors.push(honor);
+        } catch (e) { /* ignore */ }
     });
 
     return honors;
 }
 
-// Extract languages data from LinkedIn details/languages page
-function extractLanguagesData() {
-    const languages = [];
-    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+// ─── Languages ─────────────────────────────────────────────────
 
-    // Get all language items
-    const items = mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated');
+function extractLanguagesData() {
+    // ── Inline helpers ──
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
+    const languages = [];
+    const items = findDetailPageItems();
 
     items.forEach(item => {
         try {
-            // Language name is usually the first bold span
-            const languageNameElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-            let languageName = '';
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
 
-            if (languageNameElem) {
-                languageName = languageNameElem.textContent.trim();
-            } else {
-                // Fallback: look at all spans
-                const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                    .map(s => s.textContent.trim())
-                    .filter(t => t && t.length > 0);
-
-                if (allSpans.length > 0) {
-                    languageName = allSpans[0];
-                }
+            const name = texts[0] || '';
+            if (name && name.length > 1 &&
+                !name.toLowerCase().includes('viewer') &&
+                !name.toLowerCase().includes('private to you') &&
+                !name.toLowerCase().includes('edit language')) {
+                languages.push(name);
             }
-
-            // Filter out viewer data and other non-language items
-            if (languageName &&
-                !languageName.toLowerCase().includes('viewer') &&
-                !languageName.toLowerCase().includes('private to you') &&
-                !languageName.toLowerCase().includes('edit language')) {
-                languages.push(languageName);
-            }
-        } catch (e) {
-            // Ignore
-        }
+        } catch (e) { /* ignore */ }
     });
 
-    // De-duplicate
     return [...new Set(languages)];
 }
 
-/**
- * Extract patents data from LinkedIn profile page OR details/patents page
- * Works on both the main profile page and dedicated /details/patents/ page
- */
+// ─── Patents ───────────────────────────────────────────────────
+
 function extractPatentsData() {
+    // ── Inline helpers ──
+    function findDetailPageItems() {
+        const main = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+        // Strategy 1: entity-collection-item componentkey (experiences page)
+        let items = Array.from(main.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+        if (items.length > 1) return items;
+        // Strategy 2: edit-button-trace to unique componentkeys (education, skills)
+        const editBtns = main.querySelectorAll('button[aria-label^="Edit "]');
+        const itemSet = new Set();
+        editBtns.forEach(btn => {
+            let el = btn.parentElement;
+            while (el && el !== main) {
+                if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                el = el.parentElement;
+            }
+        });
+        if (itemSet.size > 1) return Array.from(itemSet);
+        // Strategy 3: HR-splitting inside lazy-column content area
+        const lazyCol = main.querySelector('[data-testid="lazy-column"]');
+        if (lazyCol) {
+            const children = Array.from(lazyCol.children);
+            const contentChild = children.find(c => c.querySelectorAll('hr').length > 0);
+            if (contentChild) {
+                const firstHr = contentChild.querySelector('hr');
+                const hrContainer = firstHr.parentElement;
+                const containerChildren = Array.from(hrContainer.children);
+                const segments = [];
+                let currentSegment = [];
+                for (const child of containerChildren) {
+                    if (child.tagName === 'HR') {
+                        if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                        currentSegment = [];
+                    } else {
+                        currentSegment.push(child);
+                    }
+                }
+                if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                if (segments.length > 1) return segments;
+            }
+        }
+        // Strategy 4: role="listitem" inside lazy-column
+        if (lazyCol) {
+            const listItems = Array.from(lazyCol.querySelectorAll('[role="listitem"]'));
+            if (listItems.length > 1) return listItems;
+        }
+        // Last resort: return whatever edit-button-trace found (even if 1)
+        if (itemSet.size > 0) return Array.from(itemSet);
+        return [];
+    }
+    function getMetadataParagraphs(item) {
+        return Array.from(item.querySelectorAll('p'))
+            .filter(p => {
+                if (p.querySelector('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('[data-testid="expandable-text-box"]')) return false;
+                if (p.closest('button')) return false;
+                if (p.closest('[data-view-name*="skills-button"]')) return false;
+                if (p.closest('[data-view-name*="see-skills"]')) return false;
+                if (p.closest('[data-view-name*="thumbnail"]')) return false;
+                const innerA = p.querySelector('a');
+                if (innerA) {
+                    const dvn = innerA.getAttribute('data-view-name') || '';
+                    if (dvn.includes('skills')) return false;
+                    const txt = (innerA.textContent || '').trim();
+                    if (/\d+\s*skills?\s*$/i.test(txt)) return false;
+                    const lower = txt.toLowerCase();
+                    if (lower === 'show publication' || lower === 'show credential') return false;
+                }
+                const text = (p.textContent || '').trim();
+                if (text === 'Other authors') return false;
+                return true;
+            })
+            .map(p => (p.textContent || '').trim())
+            .filter(t => t.length > 0 && t.length < 500 && t !== '·' && t !== '|');
+    }
+
+    // ── Main logic ──
     const patents = [];
 
-    // First, check if we're on a details page (main content area)
-    const mainContent = document.querySelector('main') || document.querySelector('[role="main"]') || document.body;
+    // First: look for a patents section via componentkey (profile page)
     let items = [];
-
-    // Try to find patents in the main content area (works for details pages)
-    items = Array.from(mainContent.querySelectorAll('li.pvs-list__paged-list-item, li.artdeco-list__item, .pvs-list__item--line-separated'));
-
-    // If we found list items in main content, filter for patent-related ones
-    if (items.length > 0) {
-        // On details page, all items should be patents
-        // On profile page, we need to filter
-        const filteredItems = items.filter(item => {
-            const ariaLabels = Array.from(item.querySelectorAll('[aria-label]'))
-                .map(el => el.getAttribute('aria-label') || '')
-                .join(' ')
-                .toLowerCase();
-
-            const links = Array.from(item.querySelectorAll('a'))
-                .map(a => a.href || '')
-                .join(' ')
-                .toLowerCase();
-
-            const text = item.textContent || '';
-
-            // Check if this item is patent-related
-            return (
-                ariaLabels.includes('patent') ||
-                links.includes('patent') ||
-                links.includes('google.com/patents') ||
-                // Check for patent numbers in text (e.g., US20220147766A1)
-                /[A-Z]{2}\d{8,}[A-Z]?\d*/i.test(text)
-            );
-        });
-
-        // Use filtered items if we found any patent-related ones
-        if (filteredItems.length > 0) {
-            items = filteredItems;
-        } else {
-            // No patent-related items found
-            // If we have a small number of items (< 10), we might be on a details page where all items are patents
-            // If we have many items (>= 10), we're probably on the wrong page or profile page without patents
-            if (items.length >= 10) {
-                items = []; // Too many items and none are patent-related - not on patents page
+    const sections = document.querySelectorAll('section[componentkey]');
+    for (const section of sections) {
+        const ck = section.getAttribute('componentkey') || '';
+        const h2 = section.querySelector('h2');
+        const title = h2 ? h2.textContent.trim() : '';
+        if (ck.includes('Patent') || title === 'Patents') {
+            items = Array.from(section.querySelectorAll('div[componentkey^="entity-collection-item"]'));
+            // If no entity-collection-item, try HR-splitting within section
+            if (items.length === 0) {
+                const hrs = section.querySelectorAll('hr');
+                if (hrs.length > 0) {
+                    const hrContainer = hrs[0].parentElement;
+                    const containerChildren = Array.from(hrContainer.children);
+                    const segments = [];
+                    let currentSegment = [];
+                    for (const child of containerChildren) {
+                        if (child.tagName === 'HR') {
+                            if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                            currentSegment = [];
+                        } else {
+                            currentSegment.push(child);
+                        }
+                    }
+                    if (currentSegment.length > 0) segments.push(currentSegment[0]);
+                    if (segments.length > 0) items = segments;
+                }
             }
-            // else: keep the items (might be on a details page with few patents)
+            // If still no items, try edit-button-trace within section
+            if (items.length === 0) {
+                const editBtns = section.querySelectorAll('button[aria-label^="Edit "]');
+                const itemSet = new Set();
+                editBtns.forEach(btn => {
+                    let el = btn.parentElement;
+                    while (el && el !== section) {
+                        if (el.getAttribute('componentkey')) { itemSet.add(el); break; }
+                        el = el.parentElement;
+                    }
+                });
+                if (itemSet.size > 0) items = Array.from(itemSet);
+            }
+            // Last resort: use all paragraphs in section as a single item
+            if (items.length === 0) {
+                const ps = section.querySelectorAll('p');
+                if (ps.length > 0) items = [section];
+            }
+            break;
         }
     }
 
-    // Fallback: try to find a dedicated patents section on profile page
+    // Fallback: generic detection (patent details page)
     if (items.length === 0) {
-        const patentsSection = document.querySelector('#patents, section:has(#patents)');
+        // Only use findDetailPageItems if we're on a patent-specific SDUI page
+        const patentScreen = document.querySelector('[data-sdui-screen*="Patent"]');
+        if (patentScreen) {
+            items = findDetailPageItems();
+        }
+    }
+
+    // Fallback: filter generic items for patent-related content
+    if (items.length === 0) {
+        let genericItems = findDetailPageItems();
+        const filtered = genericItems.filter(item => {
+            const labels = Array.from(item.querySelectorAll('[aria-label]'))
+                .map(el => (el.getAttribute('aria-label') || '').toLowerCase()).join(' ');
+            const links = Array.from(item.querySelectorAll('a'))
+                .map(a => (a.href || '').toLowerCase()).join(' ');
+            return labels.includes('patent') || links.includes('patent') ||
+                   links.includes('google.com/patents');
+        });
+        if (filtered.length > 0) items = filtered;
+    }
+
+    // Fallback: old DOM #patents
+    if (items.length === 0) {
+        const patentsSection = document.querySelector('#patents');
         if (patentsSection) {
             const patentsContainer = patentsSection.closest('section');
             if (patentsContainer) {
-                items = Array.from(patentsContainer.querySelectorAll('li.artdeco-list__item, li.pvs-list__paged-list-item, li.pvs-list__item--line-separated'));
+                items = Array.from(patentsContainer.querySelectorAll('li.artdeco-list__item, li.pvs-list__paged-list-item'));
             }
         }
     }
 
     items.forEach(item => {
         try {
-            const allSpans = Array.from(item.querySelectorAll('span[aria-hidden="true"]'))
-                .map(s => s.textContent.trim())
-                .filter(t => t && t.length > 0);
+            const texts = getMetadataParagraphs(item);
+            if (texts.length === 0) return;
 
-            if (allSpans.length === 0) return;
+            const patent = { title: texts[0] || '', number: '', issuer: '', date: '', url: '', description: '' };
 
-            const patent = {
-                title: '',
-                number: '',
-                issuer: '',
-                date: '',
-                url: '',
-                description: ''
-            };
-
-            // Patent number/title is usually the first bold span
-            // Format is often "Patent Number - Title" (e.g., "US20220147766A1 - Vertex interpolation...")
-            const titleElem = item.querySelector('.mr1.t-bold span[aria-hidden="true"], .t-bold span[aria-hidden="true"]');
-            if (titleElem) {
-                const fullTitle = titleElem.textContent.trim();
-                patent.title = fullTitle;
-
-                // Try to extract patent number if it's in the format "NUMBER - Title"
-                if (fullTitle.includes(' - ')) {
-                    const parts = fullTitle.split(' - ');
-                    if (parts[0] && /^[A-Z]{2}\d+[A-Z]?\d*$/i.test(parts[0].trim())) {
-                        patent.number = parts[0].trim();
-                        patent.title = parts.slice(1).join(' - ').trim();
-                    }
+            if (patent.title.includes(' - ')) {
+                const parts = patent.title.split(' - ');
+                if (parts[0] && /^[A-Z]{2}\d+[A-Z]?\d*$/i.test(parts[0].trim())) {
+                    patent.number = parts[0].trim();
+                    patent.title = parts.slice(1).join(' - ').trim();
                 }
-            } else if (allSpans.length > 0) {
-                patent.title = allSpans[0];
             }
 
-            // Try to find issuer and date
-            // Format can be: "Issued · Date" or "Patent Office"
-            const metadataSpan = allSpans.find(s =>
-                s !== patent.title &&
-                (s.toLowerCase().includes('issued') ||
-                    s.toLowerCase().includes('patent') ||
-                    /\d{4}/.test(s))
-            );
-
-            if (metadataSpan) {
-                if (metadataSpan.includes('·')) {
-                    const parts = metadataSpan.split('·').map(s => s.trim());
+            for (let i = 1; i < texts.length && i < 5; i++) {
+                const t = texts[i];
+                if (t.includes('·')) {
+                    const parts = t.split('·').map(s => s.trim());
                     parts.forEach(part => {
-                        if (/\d{4}/.test(part)) {
+                        if (/^[A-Z]{2}\s*\d+[A-Z]?\d*$/i.test(part) && !patent.number) {
+                            patent.number = part;
+                        } else if (/\d{4}/.test(part)) {
                             patent.date = part;
-                        } else if (part.toLowerCase().includes('issued') || part.toLowerCase().includes('patent')) {
+                        } else if (/issued|patent/i.test(part)) {
                             patent.issuer = part;
                         }
                     });
-                } else if (/\d{4}/.test(metadataSpan)) {
-                    patent.date = metadataSpan;
-                } else {
-                    patent.issuer = metadataSpan;
+                } else if (/\d{4}/.test(t) && !patent.date) {
+                    patent.date = t;
+                } else if (/issued|patent/i.test(t)) {
+                    patent.issuer = t;
                 }
             }
 
-            // Get description
-            const descElem = item.querySelector('.inline-show-more-text, .pvs-list__outer-container .pvs-list__item--with-top-padding');
-            if (descElem) {
-                patent.description = descElem.textContent.trim().replace(/\s+/g, ' ');
+            const descSpan = item.querySelector('[data-testid="expandable-text-box"]');
+            if (descSpan) {
+                patent.description = (descSpan.innerText || descSpan.textContent || '').trim();
             } else {
-                // Try to find description from remaining spans
-                const descCandidate = allSpans.find(s =>
-                    s !== patent.title &&
-                    s !== metadataSpan &&
-                    s.length > 30
-                );
-                if (descCandidate) {
-                    patent.description = descCandidate;
-                }
+                const long = texts.find(s => s.length > 30 && s !== patent.title);
+                if (long) patent.description = long;
             }
 
-            // Get URL if available
-            const linkElem = item.querySelector('a.optional-action-target-wrapper, a[href*="patent"], a[href*="google.com/patents"]');
-            if (linkElem) {
-                patent.url = linkElem.href;
-            }
+            const link = item.querySelector('a[href*="patent"], a[href*="google.com/patents"]');
+            if (link) patent.url = link.href;
 
-            // Filter out viewer data / garbage
-            const isGarbage =
-                patent.title.startsWith('Someone at') ||
-                patent.title.includes('…') ||
-                patent.title.toLowerCase().includes('show all') ||
-                patent.title.toLowerCase().includes('see all') ||
-                !patent.title; // Must have a title
-
-            if (!isGarbage) {
+            if (patent.title && !patent.title.startsWith('Someone at') &&
+                !patent.title.toLowerCase().includes('show all')) {
                 patents.push(patent);
             }
-
-        } catch (e) {
-            console.error('Error extracting patent item:', e);
-        }
+        } catch (e) { /* ignore */ }
     });
 
     return patents;
@@ -1560,7 +1851,6 @@ module.exports = {
     extractCertificationData,
     extractProjectsData,
     extractSkillsData,
-    extractProfileData,
     extractProfileData,
     extractVolunteeringData,
     extractPublicationsData,

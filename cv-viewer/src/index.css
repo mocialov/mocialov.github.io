@@ -1,0 +1,182 @@
+/* ===== CV Viewer Styles ===== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #1f2937;
+  background: #f3f4f6;
+  line-height: 1.5;
+}
+
+/* ---- Loading spinner ---- */
+.viewer-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.viewer-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Drop zone ---- */
+.viewer-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 40px;
+  border: 3px dashed #d1d5db;
+  border-radius: 16px;
+  background: #ffffff;
+  max-width: 500px;
+  width: 100%;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.viewer-drop--active {
+  border-color: #667eea;
+  background: #eef2ff;
+  transform: scale(1.02);
+}
+
+.viewer-drop__icon {
+  font-size: 56px;
+  line-height: 1;
+}
+
+.viewer-drop__title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.viewer-drop__text {
+  font-size: 16px;
+  color: #6b7280;
+}
+
+.viewer-drop__or {
+  font-size: 13px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.viewer-drop__btn {
+  display: inline-block;
+  padding: 12px 28px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+}
+.viewer-drop__btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.45);
+}
+
+.viewer-drop__hint {
+  font-size: 13px;
+  color: #9ca3af;
+  max-width: 320px;
+}
+
+/* ---- Toolbar ---- */
+.viewer-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 24px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+.viewer-toolbar__file {
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+}
+
+.viewer-toolbar__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.viewer-btn {
+  appearance: none;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
+}
+.viewer-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.35);
+}
+
+.viewer-btn--secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  box-shadow: none;
+}
+.viewer-btn--secondary:hover {
+  background: #e5e7eb;
+  box-shadow: none;
+}
+
+/* ---- CV content area ---- */
+.viewer-root {
+  min-height: 100vh;
+}
+
+.viewer-cv {
+  max-width: 900px;
+  margin: 24px auto;
+  padding: 0 24px 48px;
+}
+
+/* ---- Print ---- */
+@media print {
+  .viewer-toolbar { display: none !important; }
+  .viewer-cv { max-width: unset; margin: 0; padding: 0; }
+  body { background: #fff; }
+}

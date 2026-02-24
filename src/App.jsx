@@ -281,6 +281,119 @@ function App() {
     skills: filteredForScreen.skills
   } : null;
 
+  // Export the full visual CV (with graphics/colors) as a self-contained HTML file
+  const exportCvAsHtml = async () => {
+    if (!filteredForPrint) return;
+
+    // Find the .result container that holds the visual profile
+    const resultEl = document.querySelector('.result');
+    if (!resultEl) {
+      alert('No CV content found to export.');
+      return;
+    }
+
+    // Deep-clone so we can strip interactive elements without touching the live DOM
+    const clone = resultEl.cloneNode(true);
+
+    // Remove all buttons, drag handles, editable indicators, reorder UI, logs, details (JSON/print)
+    clone.querySelectorAll(
+      'button, .icon-button, .drag-handle, .cv-actions, .sortable-item > .drag-handle, ' +
+      '.collapsible-actions, .button-minimal, .button, .logs-panel, ' +
+      'details:has(> summary)'
+    ).forEach(el => el.remove());
+    // Also remove any remaining <details> that wrap JSON / Printable CV
+    clone.querySelectorAll('details').forEach(el => el.remove());
+    // Strip contentEditable attributes (make everything static)
+    clone.querySelectorAll('[contenteditable]').forEach(el => {
+      el.removeAttribute('contenteditable');
+      el.removeAttribute('data-placeholder');
+    });
+    // Remove placeholder empty spans
+    clone.querySelectorAll('[data-placeholder]').forEach(el => el.removeAttribute('data-placeholder'));
+    // Ensure collapsible sections are open (remove collapsed state)
+    clone.querySelectorAll('.collapsible-content').forEach(el => {
+      el.style.display = '';
+    });
+
+    // Convert profile image to base64 data URL so it embeds in the HTML
+    const imgEl = clone.querySelector('.profile-photo');
+    if (imgEl && imgEl.src) {
+      try {
+        const resp = await fetch(imgEl.src);
+        const blob = await resp.blob();
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+        imgEl.src = dataUrl;
+      } catch { /* keep original src if conversion fails */ }
+    }
+
+    // Collect ALL CSS rules from stylesheets (skip @media print rules)
+    const allStyles = Array.from(document.styleSheets)
+      .flatMap(sheet => {
+        try { return Array.from(sheet.cssRules); } catch { return []; }
+      })
+      .filter(rule => {
+        // Skip @media print rules
+        if (rule instanceof CSSMediaRule && /print/.test(rule.conditionText || '')) return false;
+        return true;
+      })
+      .map(rule => rule.cssText)
+      .join('\n');
+
+    const htmlDoc = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${(filteredForPrint.name || 'CV').replace(/</g, '&lt;')} – CV</title>
+<style>
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #1f2937;
+  background: #ffffff;
+  min-height: 100vh;
+  padding: 0;
+  line-height: 1.5;
+}
+/* App Styles */
+${allStyles}
+/* Export overrides */
+.result { border: none; margin: 0; }
+.container { max-width: 900px; margin: 0 auto; }
+.sortable-item { display: flex; align-items: center; width: 100%; }
+.collapsible-toggle { cursor: default; }
+.chevron { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+${clone.innerHTML}
+</div>
+
+<!-- Structured CV data for programmatic use (e.g. import into a React app) -->
+<script type="application/json" id="cv-data">
+${JSON.stringify(filteredForPrint, null, 2)}
+</script>
+</body>
+</html>`;
+
+    const file = new Blob([htmlDoc], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${(filteredForPrint.name || 'cv').replace(/[^a-zA-Z0-9]+/g, '_')}_CV.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // keep draftData in sync when new linkedinData arrives
   useEffect(() => {
     if (linkedinData) {
@@ -541,6 +654,23 @@ function App() {
     setLoading(false);
   };
 
+  // Helper: poll /api/check-login until logged in, with timeout
+  const waitForLogin = (timeoutMs = 300000) => {
+    return new Promise((resolve, reject) => {
+      const deadline = Date.now() + timeoutMs;
+      const poll = async () => {
+        try {
+          const res = await fetch(`${API_URL}/api/check-login`);
+          const data = await res.json();
+          if (data.loggedIn) return resolve(true);
+        } catch (_) {}
+        if (Date.now() > deadline) return reject(new Error('Login timed out after 5 minutes.'));
+        setTimeout(poll, 3000);
+      };
+      poll();
+    });
+  };
+
   // Default streamlined sequence (used when DEBUG === false)
   const runDefaultSequence = async () => {
     if (!isValidProfileUrl(profileUrl)) {
@@ -549,29 +679,37 @@ function App() {
     }
 
     setLoading(true);
-    setStatus('🚀 Starting sequence...');
+    setStatus('🚀 Opening LinkedIn...');
     try {
-      // 1) Start browser in headless mode (reuse saved session if present)
+      // 1) Start visible browser
       const startRes = await fetch(`${API_URL}/api/start-browser`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ headless: true })
+        body: JSON.stringify({ headless: false })
       });
       const startData = await startRes.json();
-      if (!startData.success) throw new Error(startData.error || 'Failed to start headless browser');
-      setStatus('👻 Getting LinkedIn data...');
+      if (!startData.success) throw new Error(startData.error || 'Failed to start browser');
+      setBrowserOpen(true);
 
-      // 2) Scrape profile directly (navigation happens inside endpoint)
+      // 2) If not logged in, wait for user to log in
+      if (!startData.loggedIn) {
+        setStatus('🔑 Please log in to LinkedIn in the browser window...');
+        await waitForLogin();
+        setLoggedIn(true);
+      }
+
+      setStatus('📊 Extracting LinkedIn data — please wait, this takes 30-60 seconds...');
+
+      // 3) Scrape profile (in visible mode)
       const scrapeRes = await fetch(`${API_URL}/api/scrape-profile`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ profileUrl })
       });
 
-      // Handle unauthorized (not logged in) explicitly
       if (scrapeRes.status === 401) {
         const err = await scrapeRes.json().catch(() => ({ error: 'Not logged in' }));
-        throw new Error(err.error || 'Not logged in. Please login once in visible mode to save the session.');
+        throw new Error(err.error || 'Not logged in. Please try again.');
       }
 
       const result = await scrapeRes.json();
@@ -581,12 +719,9 @@ function App() {
       setStatus('✅ LinkedIn data extracted successfully!');
 
     } catch (error) {
-      setStatus(`❌ Default sequence failed: ${error.message}`);
+      setStatus(`❌ ${error.message}`);
     } finally {
-      // 3) Close browser to keep things tidy
-      try {
-        await fetch(`${API_URL}/api/close-browser`, { method: 'POST' });
-      } catch {}
+      try { await fetch(`${API_URL}/api/close-browser`, { method: 'POST' }); } catch {}
       setBrowserOpen(false);
       setLoggedIn(false);
       setLoading(false);
@@ -796,7 +931,7 @@ function App() {
 
       {draftData && (
         <div className="result">
-          <div className="cv-actions" style={{ marginBottom: 12 }}>
+          <div className="cv-actions" style={{ marginBottom: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button
               onClick={() => {
                 setDraftData(linkedinData);
@@ -808,6 +943,14 @@ function App() {
               title="Restore original scraped data and undo removals"
             >
               ↩️ Reset Any Edits
+            </button>
+            <button
+              onClick={exportCvAsHtml}
+              className="button"
+              style={{ background: '#10b981' }}
+              title="Export CV as a self-contained HTML file with embedded JSON data for use in another React app"
+            >
+              💾 Export CV (HTML)
             </button>
           </div>
 
@@ -1070,13 +1213,6 @@ function App() {
                                       placeholder="What did you do?"
                                       onChange={(v) => updateArrayItem('experience', exp, (it) => ({ ...it, description: v }))}
                                     />
-                                  </div>
-                                )}
-                                {Array.isArray(exp.contextual_skills) && exp.contextual_skills.length > 0 && (
-                                  <div className="experience-skills">
-                                    {exp.contextual_skills.map((s, idx) => (
-                                      <span key={idx} className="skill-badge">{s}</span>
-                                    ))}
                                   </div>
                                 )}
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>

@@ -38,5 +38,12 @@ scripts/linkedin-raw.html
 # Build output
 /dist
 
+# cv-viewer
+cv-viewer/node_modules
+cv-viewer/dist
+
 # Session data
 /linkedin-session
+
+# Tests (HTML snapshots & dev scripts)
+/tests

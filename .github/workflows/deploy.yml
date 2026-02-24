@@ -30,12 +30,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build main site
         run: npm run build
         env:
-          # Set this to your backend URL if deploying the API elsewhere
-          # Example: https://your-api.example.com
           VITE_API_URL: ${{ vars.VITE_API_URL }}
+
+      - name: Install cv-viewer dependencies
+        working-directory: cv-viewer
+        run: npm ci
+
+      - name: Build cv-viewer
+        working-directory: cv-viewer
+        run: npm run build
+
+      - name: Copy cv-viewer into main dist
+        run: cp -r cv-viewer/dist ./dist/cv
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
