@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Boris Mocialov – CV</title>
+<style>
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #1f2937;
+  background: #ffffff;
+  min-height: 100vh;
+  padding: 0;
+  line-height: 1.5;
+}
+/* App Styles */
+html, body { height: 100%; }
+body { margin: 0px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: rgb(255, 255, 255); }
+#root { min-height: 100vh; }
+* { box-sizing: border-box; margin: 0px; padding: 0px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; color: rgb(31, 41, 55); background: rgb(255, 255, 255); min-height: 100vh; display: block; padding: 0px; overflow-y: auto; }
+#root, html, body { width: 100%; min-height: 100vh; }
+#root { width: 100%; display: block; }
+.app { width: 100%; min-height: 100vh; display: block; }
+.container { background: rgb(255, 255, 255); border-radius: 0px; box-shadow: none; padding: 40px; max-width: none; width: 80%; margin: 0px auto; min-height: 100vh; max-height: none; overflow-y: visible; }
+.title { font-size: 32px; font-weight: 700; margin: 0px 0px 8px; text-align: center; }
+.subtitle { color: rgb(107, 114, 128); margin: 0px 0px 24px; text-align: center; font-size: 16px; }
+.instructions { background: rgb(243, 244, 246); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+.instructions h3 { margin: 0px 0px 12px; font-size: 18px; }
+.instructions ol { margin-left: 20px; }
+.instructions li { margin: 8px 0px; line-height: 1.6; }
+.button-group { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
+.button { appearance: none; border: none; background: rgb(0, 119, 181); color: rgb(255, 255, 255); font-weight: 600; font-size: 16px; padding: 14px 24px; border-radius: 12px; cursor: pointer; box-shadow: rgba(0, 119, 181, 0.3) 0px 4px 12px; transition: 0.2s; }
+.button:hover { transform: translateY(-2px); box-shadow: rgba(0, 119, 181, 0.4) 0px 6px 16px; }
+.button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.button-minimal { appearance: none; border: 1px solid rgb(229, 231, 235); background: rgb(243, 244, 246); color: rgb(55, 65, 81); font-weight: 500; font-size: 14px; padding: 8px 14px; border-radius: 8px; cursor: pointer; box-shadow: none; transition: background-color 0.15s, color 0.15s, border-color 0.15s; }
+.button-minimal:hover { background: rgb(229, 231, 235); border-color: rgb(209, 213, 219); }
+.button-minimal:disabled { opacity: 0.6; cursor: not-allowed; }
+.result { margin-top: 24px; background: rgb(249, 250, 251); border: 2px solid rgb(229, 231, 235); border-radius: 12px; padding: 24px; }
+.status { margin-top: 24px; background: rgb(249, 250, 251); border: 2px solid rgb(229, 231, 235); border-radius: 12px; padding: 24px; }
+.error { color: rgb(220, 38, 38); background: rgb(254, 242, 242); border: 1px solid rgb(254, 202, 202); border-radius: 8px; padding: 12px; margin-top: 12px; }
+pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.5; background: rgb(243, 244, 246); padding: 16px; border-radius: 8px; overflow: auto; max-height: 400px; }
+.url { color: rgb(0, 119, 181); background: rgb(238, 246, 251); padding: 8px 12px; border-radius: 8px; display: inline-block; font-family: monospace; }
+.spinner { display: inline-block; width: 18px; height: 18px; border-width: 2px; border-style: solid; border-color: rgb(255, 255, 255) rgba(255, 255, 255, 0.6) rgba(255, 255, 255, 0.6); border-image: initial; border-radius: 50%; animation: 1s linear 0s infinite normal none running spin; margin-left: 10px; }
+@keyframes spin { 
+  100% { transform: rotate(360deg); }
+}
+h2 { margin: 0px 0px 16px; font-size: 24px; }
+h3 { margin: 16px 0px 8px; font-size: 20px; }
+strong { color: rgb(55, 65, 81); }
+details { cursor: pointer; margin-top: 16px; }
+details summary { font-weight: 600; color: rgb(0, 119, 181); cursor: pointer; padding: 8px; border-radius: 4px; transition: background 0.2s; }
+details summary:hover { background: rgb(243, 244, 246); }
+@media (max-width: 640px) {
+  .container { padding: 24px; }
+  .title { font-size: 24px; }
+  .button-group { flex-direction: column; }
+  .button { width: 100%; }
+}
+.profile-header { display: flex; align-items: center; gap: 24px; padding: 24px; background: linear-gradient(135deg, rgb(102, 126, 234) 0%, rgb(118, 75, 162) 100%); border-radius: 12px; margin-bottom: 32px; color: white; }
+.profile-photo { width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 4px solid white; box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px; flex-shrink: 0; }
+.profile-info { flex: 1 1 0%; }
+.profile-name { font-size: 32px; font-weight: 700; margin: 0px 0px 8px; color: white; }
+.profile-headline { font-size: 18px; margin-bottom: 8px; opacity: 0.95; font-weight: 500; }
+.profile-location { font-size: 14px; opacity: 0.9; }
+.section { margin-bottom: 40px; padding-bottom: 32px; border-bottom: 2px solid rgb(229, 231, 235); }
+.section:last-child { border-bottom: none; }
+.section-title { font-size: 24px; font-weight: 700; color: rgb(31, 41, 55); margin: 0px 0px 20px; padding-bottom: 12px; border-bottom: 3px solid rgb(102, 126, 234); display: inline-block; }
+.about-text { font-size: 15px; line-height: 1.7; color: rgb(55, 65, 81); white-space: pre-wrap; background: rgb(249, 250, 251); padding: 20px; border-radius: 8px; border-left: 4px solid rgb(102, 126, 234); }
+.skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-top: 16px; }
+.skill-badge { padding: 10px 16px; background: rgb(224, 231, 255); color: rgb(67, 56, 202); border-radius: 8px; font-size: 14px; font-weight: 500; text-align: center; transition: 0.2s; border: 2px solid transparent; display: flex; align-items: center; justify-content: center; }
+.skill-badge:hover { background: rgb(199, 210, 254); border-color: rgb(99, 102, 241); transform: translateY(-2px); }
+.skill-primary { background: rgb(102, 126, 234); color: white; font-weight: 600; }
+.skill-primary:hover { background: rgb(85, 104, 211); border-color: rgb(67, 56, 202); }
+.skills-expand { margin-top: 16px; }
+.skills-expand-btn { color: rgb(102, 126, 234); font-weight: 600; cursor: pointer; padding: 8px 0px; }
+.sortable-item { display: flex; align-items: center; gap: 8px; width: 100%; }
+.skills-grid { gap: 12px; }
+.section .timeline, .section .education-list, .section .certifications-grid { width: 100%; }
+.section .experience-item, .section .education-item, .section .certification-item { width: 100%; }
+.experience-count { color: rgb(107, 114, 128); font-size: 14px; margin-bottom: 20px; font-weight: 500; }
+.timeline { position: relative; padding-left: 32px; }
+.timeline::before { content: ""; position: absolute; left: 8px; top: 12px; bottom: 12px; width: 2px; background: linear-gradient(rgb(102, 126, 234), rgb(229, 231, 235)); }
+.experience-item { position: relative; margin-bottom: 32px; }
+.experience-item:last-child { margin-bottom: 0px; }
+.timeline-marker { }
+.experience-content { background: white; padding: 20px; border-radius: 8px; border: 1px solid rgb(229, 231, 235); box-shadow: rgba(0, 0, 0, 0.05) 0px 2px 4px; transition: 0.2s; }
+.experience-content:hover { box-shadow: rgba(102, 126, 234, 0.15) 0px 4px 12px; border-color: rgb(102, 126, 234); }
+.experience-title { font-size: 18px; font-weight: 700; color: rgb(31, 41, 55); margin: 0px 0px 8px; }
+.experience-company { font-size: 16px; color: rgb(102, 126, 234); font-weight: 600; margin-bottom: 6px; }
+.experience-meta { font-size: 14px; color: rgb(107, 114, 128); margin-bottom: 12px; }
+.experience-duration { font-weight: 500; }
+.experience-location { color: rgb(156, 163, 175); }
+.experience-description { margin-top: 12px; font-size: 14px; line-height: 1.6; color: rgb(75, 85, 99); white-space: pre-wrap; }
+[contenteditable] { white-space: pre-wrap; }
+.inline-edit { display: inline-block; min-width: 1ch; white-space: normal; }
+[contenteditable][data-placeholder]:empty::before { content: attr(data-placeholder); color: rgb(156, 163, 175); }
+.experience-skills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.cv-experience-skills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.education-list { display: flex; flex-direction: column; gap: 20px; }
+.education-item { background: white; padding: 20px; border-radius: 8px; border-left: 4px solid rgb(102, 126, 234); box-shadow: rgba(0, 0, 0, 0.05) 0px 2px 4px; }
+.education-school { font-size: 18px; font-weight: 700; color: rgb(31, 41, 55); margin: 0px 0px 8px; }
+.education-degree { font-size: 15px; color: rgb(55, 65, 81); margin-bottom: 6px; font-weight: 500; }
+.education-duration { font-size: 14px; color: rgb(107, 114, 128); }
+.certifications-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.certification-item { background: white; padding: 16px; border-radius: 8px; border: 1px solid rgb(229, 231, 235); box-shadow: rgba(0, 0, 0, 0.05) 0px 2px 4px; transition: 0.2s; }
+.certification-item:hover { box-shadow: rgba(102, 126, 234, 0.15) 0px 4px 8px; border-color: rgb(102, 126, 234); }
+.certification-name { font-weight: 700; color: rgb(31, 41, 55); margin-bottom: 6px; font-size: 15px; }
+.certification-issuer { color: rgb(102, 126, 234); font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.certification-date { color: rgb(156, 163, 175); font-size: 13px; }
+@media (max-width: 768px) {
+  .profile-header { flex-direction: column; text-align: center; }
+  .profile-photo { width: 100px; height: 100px; }
+  .profile-name { font-size: 26px; }
+  .skills-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .certifications-grid { grid-template-columns: 1fr; }
+  .timeline { padding-left: 24px; }
+  .section-title { font-size: 20px; }
+}
+.cv-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.cv-page { background: rgb(255, 255, 255); color: rgb(17, 24, 39); padding: 24px; border: 1px solid rgb(229, 231, 235); border-radius: 8px; }
+.cv-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid rgb(229, 231, 235); padding-bottom: 12px; margin-bottom: 16px; }
+.cv-name { font-size: 28px; font-weight: 800; margin: 0px; }
+.cv-role { font-size: 16px; color: rgb(75, 85, 99); margin-top: 6px; }
+.cv-contact a, .cv-contact { color: rgb(31, 41, 55); text-decoration: none; font-size: 14px; }
+.cv-page a { cursor: default; }
+.cv-contact--location { display: inline-flex; }
+.cv-contact__city, .cv-contact__country { display: inline; }
+.cv-contact--location .cv-contact__country::before { content: ", "; }
+.cv-section { margin-bottom: 16px; padding-top: 12px; border-top: 2px solid rgb(229, 231, 235); }
+.cv-section:first-of-type { border-top: none; padding-top: 0px; }
+.cv-section__title { font-size: 16px; font-weight: 700; color: rgb(17, 24, 39); margin: 0px 0px 8px; }
+.cv-summary { font-size: 14px; line-height: 1.6; }
+.cv-skills { list-style: none; padding: 0px; margin: 0px 0px 0px 16px; display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-skill { border: 1px solid rgb(229, 231, 235); border-radius: 4px; padding: 4px 8px; font-size: 13px; }
+.cv-experience-skills { list-style: none; padding: 0px; margin: 8px 0px 0px; display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-experience-skills li { list-style: none; }
+.cv-list { display: flex; flex-direction: column; gap: 0px; margin-left: 16px; }
+.cv-item { padding: 8px 0px; }
+.cv-item + .cv-item { border-top: 1px solid rgb(229, 231, 235); }
+.cv-item__line { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.cv-item__content { display: block; }
+.cv-item__after { display: grid; grid-template-columns: 160px 1fr; gap: 16px; align-items: start; }
+.cv-item__desc, .cv-item__skills { grid-column: 1 / -1; }
+.cv-item__role { font-weight: 700; font-size: 14px; }
+.cv-item__role .cv-item__inline { font-weight: 400; color: rgb(55, 65, 81); }
+.cv-item__role .cv-item__inline::before { content: " — "; color: rgb(107, 114, 128); font-weight: 400; }
+.cv-item--project .cv-item__content { display: block; }
+.cv-item__skills-wrap { margin-top: 6px; }
+.cv-item__meta { display: flex; gap: 8px; color: rgb(107, 114, 128); font-size: 12px; }
+.cv-item__company { font-weight: 600; }
+.cv-item__date, .cv-item__loc { color: rgb(107, 114, 128); }
+.cv-item__date--lead { color: rgb(17, 24, 39); font-weight: 600; font-size: 12px; white-space: nowrap; word-break: keep-all; padding-right: 8px; display: block; box-sizing: border-box; }
+.cv-bullets { margin: 8px 0px 0px; padding-left: 0px; list-style-position: inside; font-size: 13px; }
+.cv-bullets li { line-height: 1.6; }
+.cv-item__text { font-size: 13px; margin-top: 8px; }
+.cv-item__text { white-space: pre-wrap; }
+.cv-cert-list { list-style: none; padding: 0px; margin: 12px 0px 0px 16px; font-size: 13px; }
+.cv-cert-list li { padding: 8px 0px; display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: start; }
+.cv-cert-list li + li { border-top: 1px solid rgb(229, 231, 235); }
+.cv-cert__name { font-weight: 600; }
+@page { size: a4; margin: 12mm; }
+.drag-handle { cursor: grab; user-select: none; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: rgb(238, 242, 255); color: rgb(79, 70, 229); margin-right: 8px; font-size: 14px; }
+.drag-handle:active { cursor: grabbing; }
+.sortable-item.dragging { opacity: 0.8; transform: scale(0.98); }
+.section-order { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px; background: rgb(248, 250, 252); border: 1px dashed rgb(199, 210, 254); border-radius: 8px; }
+.section-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgb(224, 231, 255); color: rgb(55, 48, 163); border: 1px solid rgb(199, 210, 254); border-radius: 20px; font-size: 13px; }
+.collapsible-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.collapsible-toggle { appearance: none; background: transparent; border: none; padding: 0px; margin: 0px; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; color: inherit; }
+.chevron { display: inline-block; color: rgb(79, 70, 229); transition: transform 0.2s; }
+.chevron.open { transform: rotate(90deg); }
+.collapsible-actions { display: inline-flex; align-items: center; gap: 8px; }
+.collapsible-content { margin-top: 12px; }
+.icon-button { appearance: none; border: 1px solid rgb(229, 231, 235); background: rgb(249, 250, 251); color: rgb(55, 65, 81); width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 16px; cursor: pointer; transition: background-color 0.15s, border-color 0.15s, transform 0.15s; }
+.icon-button:hover { background: rgb(243, 244, 246); border-color: rgb(209, 213, 219); transform: translateY(-1px); }
+.icon-button:active { transform: none; }
+.icon-button--danger { color: rgb(239, 68, 68); border-color: rgb(254, 202, 202); background: rgb(254, 242, 242); }
+.icon-button--danger:hover { background: rgb(254, 226, 226); border-color: rgb(252, 165, 165); }
+.icon-button--small { width: 24px; height: 24px; font-size: 14px; border-radius: 6px; }
+/* Export overrides */
+.result { border: none; margin: 0; }
+.container { max-width: 900px; margin: 0 auto; }
+.sortable-item { display: flex; align-items: center; width: 100%; }
+.collapsible-toggle { cursor: default; }
+.chevron { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+<div class="profile-header"><img src="data:image/jpeg;base64,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" alt="Profile" class="profile-photo"><div class="profile-info"><h1 class="profile-name"><span style="outline: none;">Boris Mocialov</span></h1><div class="profile-headline"><span style="outline: none;">Data Scientist → Project Lead | Translating Data Insights into Strategic Action</span></div><div class="profile-location">📍<span class="inline-edit" style="outline: none;">Oslo, Oslo, Norway</span></div></div></div><div><div class="section"><div class="collapsible-header"></div><div id=":r0:" class="collapsible-content"><div class="about-text" style="outline: none;">Technical Project Manager with over five years of experience leading cross-functional teams through the delivery of high-stakes AI and data initiatives. I specialize in bridging the gap between engineering and business, turning complex technical hurdles into clear, actionable roadmaps. My focus is on driving measurable outcomes through Agile delivery and proactive risk management, ensuring we ship on time without losing team momentum.</div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r1:" class="collapsible-content"><div class="skills-grid"><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Agile Project Management</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Requirements Management</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">University Teaching</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Teaching</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Debt Management</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Service-Level Agreements (SLA)</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">System Architecture</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Mentoring</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Scope Management</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Feasibility Studies</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Research and Development (R&amp;D)</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Technology Transfer</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Customer Engagement</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Release Management</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Software Development Life Cycle (SDLC)</span></span></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r2:" class="collapsible-content"><div class="experience-count">9 positions</div><div class="timeline"><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Senior Data Scientist</span></h3><div class="experience-company"><span style="outline: none;">Crayon Consulting · Full-time</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">May 2025</span> – <span class="inline-edit" style="outline: none;">Present</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Oslo, Norway · On-site</span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">non-exec Artificial Intelligence Director</span></h3><div class="experience-company"><span style="outline: none;">Cosmic Wire Inc · Contract</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Jul 2023</span> – <span class="inline-edit" style="outline: none;">May 2025</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">- Advised on AI strategy by balancing "big picture" commercial goals with what is actually achievable from a technical perspective.<br><br>- Worked across departments to ensure the technical vision stayed in sync with product and commercial needs.<br><br>- Defined the priorities and reporting structures that kept AI projects organized and accountable.<br><br>- Identified and mitigated delivery risks (data availability, vendor lock-in, infra constraints) early in the lifecycle, preventing costly overruns on key AI projects.</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Senior Data Scientist</span></h3><div class="experience-company"><span style="outline: none;">Aize · Full-time</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Mar 2022</span> – <span class="inline-edit" style="outline: none;">May 2025</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Oslo, Norway · On-site</span></span></div><div class="experience-description"><div style="outline: none;">- Led end-to-end delivery of data and computer vision initiatives, steering internal teams and client stakeholders from the initial discovery phase through to final delivery.<br><br>- Managed the intersection of data science, computer vision, and platform engineering, ensuring cross-functional teams stayed aligned with enterprise client needs.<br><br>- Successfully balanced 8+ concurrent enterprise accounts, syncing with Sales, Product, and Customer Success to keep technical milestones on track and meet every deadline.<br><br>- Served as the "technical translator," breaking down complex ML/CV challenges into clear, business-focused updates for non-technical leadership.<br><br>- Collaborative partner in portfolio management, helping leadership prioritize high-impact work and optimize team capacity across various engagements.</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Academic Lecturer &amp; Technical Instructor</span></h3><div class="experience-company"><span style="outline: none;">Kristiania University College, University of Edinburgh, Heriot-Watt University · Contract</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Sep 2015</span> – <span class="inline-edit" style="outline: none;">Oct 2023</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Various Academic Institutions in Oslo &amp; Edinburgh<br><br>(Oct 2021 - Oct 2023) Kristiania University College<br><br>Designed and delivered curriculum for Android Software Engineering with Kotlin, managing the learning roadmap for 100+ students to ensure core competency attainment.<br><br>https://www.kristiania.no/en/syllabus/school-of-economics-innovation-and-technology/first-cycle-degree/pgr208/android-programming/<br><br>(Jun 2017 - Jul 2017) University of Edinburgh through LEAPS programme<br><br>Teaching Android programming to pre-university teenagers<br><br>https://study.ed.ac.uk/undergraduate/access-edinburgh/secondary-school-students/lothians-equal-access-programme-leaps<br><br>(Sep 2015 - Oct 2021) Heriot-Watt University and University of Edinburgh<br><br>Provided technical mentorship and code reviews for student projects, fostering best practices in software engineering and version control</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Machine Learning Lead</span></h3><div class="experience-company"><span style="outline: none;">Buyaladdin.com, Inc · Contract</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Jan 2020</span> – <span class="inline-edit" style="outline: none;">Jun 2022</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">- Managed the ML roadmap for an e-commerce platform, aligning technical priorities with product and commercial objectives.<br><br>- Built the ML function from the ground up, acting as the bridge between engineering, product, and business stakeholders to get features shipped.<br><br>- Modernized development workflow by introducing CI/CD and automated code reviews. This made our entire production cycle more reliable and less prone to manual errors.<br><br>- Led a team of 2 engineers, implementing quarterly planning and sprint structures to deliver all major milestones on schedule.<br><br>- Owned the redesign of our core recommendation engine. Beyond the tech, I focused on setting the engineering standards and code review.</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Research Scientist</span></h3><div class="experience-company"><span style="outline: none;">SINTEF Digital · Full-time</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Apr 2021</span> – <span class="inline-edit" style="outline: none;">Mar 2022</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Oslo, Norway · On-site</span></span></div><div class="experience-description"><div style="outline: none;">- Led client-facing R&amp;D and PoC projects, taking full ownership of the lifecycle - from initial scoping and timeline management to final stakeholder handoff.<br><br>- Advised enterprise clients, bridging the gap between "big picture" business goals and technical feasibility to build actionable product roadmaps.<br><br>- Delivered projects on time by proactively managing resource needs and controlling scope changes.<br><br>- Collaborated across specialized teams, acting as the "glue" between internal researchers, client engineers, and product leadership to resolve technical blockers.<br><br>- Served as a gatekeeper for technical risk; my feasibility studies prevented clients from sinking capital into unviable tech, instead pivoting them toward more reliable, high-growth solutions.</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Computer Vision Engineer</span></h3><div class="experience-company"><span style="outline: none;">ViaTech AS · Contract</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Nov 2020</span> – <span class="inline-edit" style="outline: none;">Feb 2022</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">- Tech Lead for a production CV pipeline, overseeing the architecture and working across hardware and product teams to bring the system to life.<br><br>- Built the mobile data processing infrastructure from the ground up, ensuring the technical design aligned with both hardware limits and product goals.<br><br>- Streamlined how we handle point clouds, imagery, and laser scans - refining our sync and post-processing workflows to make them faster and more precise.<br><br>- Acted as the technical glue between hardware engineering and product stakeholders to keep feature requirements realistic and on track.<br><br>- Mentored junior talent in computer vision and production standards, helping a direct report transition into an expanded, high-impact role.<br><br>- Owned the technical roadmap, making the tough calls on when to prioritize new algorithms versus fixing technical debt.</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Visiting Researcher &amp; R&amp;D Intern</span></h3><div class="experience-company"><span style="outline: none;">Adobe &amp; Volkswagen · Contract</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Sep 2017</span> – <span class="inline-edit" style="outline: none;">Sep 2018</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">(Jun 2018 – Sep 2018) Adobe<br><br>Engineered a novel machine learning solution for risk assessment, translating abstract theoretical concepts from upper management into a deployable software artifact. Workflow was showcased at Adobe Summit<br><br>(Sep 2017 – Oct 2017) Volkswagen Data:Lab<br><br>Collaborated in a hackathon-style environment, demonstrating the ability to deliver complex technical MVPs with limited resources</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Early Career Engineering</span></h3><div class="experience-company"><span style="outline: none;">Infront-X, DEFA, SKM, Petrell · Full-time</span></div><div class="experience-meta"><span class="experience-duration"><span class="inline-edit" style="outline: none;">Nov 2010</span> – <span class="inline-edit" style="outline: none;">Aug 2015</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Trondheim, Trøndelag, Norway · On-site</span></span></div><div class="experience-description"><div style="outline: none;">Held various software engineering roles delivering robust solutions for financial, automotive, and energy sectors. Focus on Agile delivery, Android/Mobile development, Delphi, and C++ systems<br><br>(Jan 2013 – Aug 2015) Infront-X<br><br>Responsible for a portfolio of 3 customer-facing products. Modernized legacy Delphi codebases, improving system maintainability and performance. Improved internal processes for bug tracking and fixes.<br><br>(May 2012 – Jan 2013) DEFA<br><br>Product owner for an Android mobile application that enabled remote control features for automotive heating and alarm systems.<br><br>https://play.google.com/store/apps/details?id=com.est.defa<br><br>(May 2011 – Oct 2011) SKM<br><br>Delivered Android-based mobile solution, ensuring cross-device compatibility and user-friendly interface design<br><br>(Nov 2010 – Feb 2011) Petrell<br><br>Conducted rigorous code analysis and debugging for C++ / Qt applications, identifying and resolving critical stability issues in legacy software.<br><br>https://petrell.no/technology-products/vessfire/</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r3:" class="collapsible-content"><div class="education-list"><div class="sortable-item"><div class="education-item"><h3 class="education-school"><span style="outline: none;">The University of Edinburgh</span></h3><div class="education-degree"><span style="outline: none;">Doctor of Philosophy (Ph.D.)</span> • <span style="outline: none;">Robotics and Autonomous Systems</span></div><div class="education-duration"><span style="outline: none;">2015 - 2020</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div><div class="sortable-item"><div class="education-item"><h3 class="education-school"><span style="outline: none;">Heriot-Watt University</span></h3><div class="education-degree"><span style="outline: none;">Doctor of Philosophy (Ph.D.)</span> • <span style="outline: none;">Robotics and Autonomous Systems</span></div><div class="education-duration"><span style="outline: none;">2015 - 2019</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div><div class="sortable-item"><div class="education-item"><h3 class="education-school"><span style="outline: none;">Heriot-Watt University</span></h3><div class="education-degree"><span style="outline: none;">Master’s Degree</span> • <span style="outline: none;">Software Engineering</span></div><div class="education-duration"><span style="outline: none;">2014 - 2015</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div><div class="sortable-item"><div class="education-item"><h3 class="education-school"><span style="outline: none;">Norwegian University of Science and Technology (NTNU)</span></h3><div class="education-degree"><span style="outline: none;">Bachelor's degree</span> • <span style="outline: none;">Computer Science</span></div><div class="education-duration"><span style="outline: none;">2007 - 2012</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div><div class="sortable-item"><div class="education-item"><h3 class="education-school"><span style="outline: none;">Aalborg University</span></h3><div class="education-degree"><span style="outline: none;">Summer School</span> • <span style="outline: none;">Mobile phone development (Qt)</span></div><div class="education-duration"><span style="outline: none;">2010 - 2010</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r4:" class="collapsible-content"><div class="certifications-grid"><div class="sortable-item"><div class="certification-item"><div class="certification-name"><span style="outline: none;">Intermediate Threat Modeling</span></div><div class="certification-issuer"><span style="outline: none;">SecureFlag</span></div><div class="certification-date"><span style="outline: none;">Issued Oct 2025 · Expires Oct 2026</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div><div class="sortable-item"><div class="certification-item"><div class="certification-name"><span style="outline: none;">DNV Green Belt (Mandatory)</span></div><div class="certification-issuer"><span style="outline: none;">SecureFlag</span></div><div class="certification-date"><span style="outline: none;">Issued Oct 2025 · Expires Oct 2026</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div><div class="sortable-item"><div class="certification-item"><div class="certification-name"><span style="outline: none;">DNV White Belt (Mandatory)</span></div><div class="certification-issuer"><span style="outline: none;">SecureFlag</span></div><div class="certification-date"><span style="outline: none;">Issued Oct 2025 · Expires Oct 2026</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r5:" class="collapsible-content"><div class="timeline"><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">BTFD</span><span style="margin-left: 6px;"><a href="https://mocialov.github.io/buy_the_fucking_dip/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Making market timing cool again</div></div><div class="experience-skills"><span class="skill-badge">Moving Averages</span><span class="skill-badge">Median Absolute Deviation</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Mapillary City Explorer</span></h3><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Navigate streets of any city with Mapillary</div></div><div class="experience-skills"><span class="skill-badge">Microsoft Clarity</span><span class="skill-badge">Search Engine Optimization (SEO)</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Mapillary Street View Simulator</span><span style="margin-left: 6px;"><a href="https://mocialov.github.io/mapillary_street_view_simulator/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Generate Street View using Mapillary API</div></div><div class="experience-skills"><span class="skill-badge">Mapillary</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Mortgage Calculator</span><span style="margin-left: 6px;"><a href="https://mocialov.github.io/mortgage_calculator/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div class="experience-skills"><span class="skill-badge">PPMT</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Semantic Document Grouping</span><span style="margin-left: 6px;"><a href="https://mocialov.github.io/document_topic_map/" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div class="experience-skills"><span class="skill-badge">tensorflow.js</span><span class="skill-badge">umap</span></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r6:" class="collapsible-content"><div class="timeline"><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Board Member</span></h3><div class="experience-company"><span style="outline: none;">Tekna</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Nov 2022 - Present</span> • <span style="outline: none;">3 yrs 4 mos</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Big Data</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Office Bearer</span></h3><div class="experience-company"><span style="outline: none;">Robotics Society at Heriot-Watt University</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Jun 2017 - Jan 2019</span> • <span style="outline: none;">1 yr 8 mos</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Education</span></span></div><div class="experience-description"><div style="outline: none;">Student society<br>https://www.facebook.com/HWURoboticsSociety</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Accounting volunteer</span></h3><div class="experience-company"><span style="outline: none;">SHRUB: Co-op</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Aug 2018 - Dec 2018</span> • <span style="outline: none;">5 mos</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Environment</span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Demonstrator</span></h3><div class="experience-company"><span style="outline: none;">Heriot-Watt University Year of Robotics</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Jan 2017 - Dec 2017</span> • <span style="outline: none;">1 yr</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Education</span></span></div><div class="experience-description"><div style="outline: none;">Promoting Robotics across UK by participating in festivals and demonstrating equipment in schools<br>1) https://www.youtube.com/watch?v=zKFtXUi_IBk&amp;list=PLGkkVba61RQp_wgTjrOwxcvDcLsg1fv2x&amp;index=1<br>2) https://www.hw.ac.uk/news/articles/2017/pudsey-meets-the-year-of-robotics-student.htm<br>3) https://www.hw.ac.uk/uk/research/engage/case-studies/year-of-robotics.htm<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Workshop Lead</span></h3><div class="experience-company"><span style="outline: none;">Scottish Informatics and Computer Science Alliance (SICSA)</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Feb 2017 - Oct 2017</span> • <span style="outline: none;">9 mos</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;">Education</span></span></div><div class="experience-description"><div style="outline: none;">Workshop "Ethical, Social, and Professional Issues in Computer Science" organiser<br>https://www.sicsa.ac.uk/wp-content/uploads/2018/07/Sicsa_ethical_social_professional_issues_workshop_simmary.pdf<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Local Committee President</span></h3><div class="experience-company"><span style="outline: none;">AIESEC</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Aug 2011 - Nov 2011</span> • <span style="outline: none;">4 mos</span></span><span class="experience-location">•<span class="inline-edit" style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r7:" class="collapsible-content"><div class="timeline"><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Poster: Point Cloud Data Simulation and Modelling with Aize Workspace</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Eresearchgate%2Enet%2Fpublication%2F367221391_Poster_Point_Cloud_Data_Simulation_and_Modelling_with_Aize_Workspace&amp;urlhash=X7uc&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;"></span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Jan 9, 2023</span></span></div><div class="experience-description"><div style="outline: none;">This work takes a look at data models often used in digital twins and presents preliminary results specifically from surface reconstruction and semantic segmentation models trained using simulated data. This work is expected to serve as a ground work for future endeavours in data contextualisation inside a digital twin.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Towards Sustainable Smart Cities: The Use of the ViaPPS as Road Monitoring System</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Flink%2Espringer%2Ecom%2Fchapter%2F10%2E1007%2F978-3-031-08815-5_8&amp;urlhash=bY8T&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;">Springer Nature</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Nov 3, 2022</span></span></div><div class="experience-description"><div style="outline: none;">Smart cities are an opportunity to overcome the concerns regarding the rapid increase in highly dense populated urban areas. Using ICT, smart cities make urban areas greener, sustainable and at the same time increase their competitiveness and their economic growth. Road networks play a significant role to improve the sustainability of smart cities. Indeed, deteriorated roads cause tied mobility, traffic congestion, CO2 emissions and economic damages to cities and their citizens. To prevent these negative aspects, the road network have to be continuously maintained. A satisfactory road maintenance relies on a continuous monitoring of road network which can be facilitated deploying ICT. This article presents the role of ICT in road monitoring and showcases the ViaPPS: a mobile Pavement Profiling System. The ViaPPS offers accurate and detailed geo-referenced information of the state of the road and the corresponding furniture with the deployment of LiDAR and computer vision techniques. After presenting the capabilities of the ViaPPS, this article discusses the strategy of the smart city of Oslo towards its sustainable development goals and the role of ICT in road maintenance.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">ViaPPS: A Mobile Pavement Profiling System</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Farxiv%2Eorg%2Fabs%2F2101%2E11267&amp;urlhash=Neo5&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;"></span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Jan 1, 2021</span></span></div><div class="experience-description"><div style="outline: none;">Ensuring safety levels on roads is an imperative task for road authorities. Significant amounts of time and money are spent on performing road inspections every year. In order to ensure efficiency of road inventories, road practitioners are in need of reliable systems that are fast and are designed to comply with high standards at lower costs. To date, the 3D Mobile Mapping Systems is the most efficient, productive and accurate system used during evaluation of pavement inventories. This paper presents ViaPPS, a 3D Mobile Mapping System from ViaTech AS. ViaPPS offers accurate georeferenced data by combining the perception and navigation sensors. This paper showcases results from multiple mobile systems after the harmonization process which is held once a year to evaluate reliability and repeatability of the measurements.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Transfer Learning for British Sign Language Modelling</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Faclanthology%2Ecoli%2Euni-saarland%2Ede%2Fpapers%2FW18-3911%2Fw18-3911&amp;urlhash=kHZX&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;">Association for Computational Linguistics</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Aug 1, 2018</span></span></div><div class="experience-description"><div style="outline: none;">Automatic speech recognition and spoken dialogue systems have made great advances through<br>the use of deep machine learning methods. This is partly due to greater computing power but also<br>through the large amount of data available in common languages, such as English. Conversely,<br>research in minority languages, including sign languages, is hampered by the severe lack of data.<br>This has led to work on transfer learning methods, whereby a model developed for one language<br>is reused as the starting point for a model on a second language, which is less resourced. In<br>this paper, we examine two transfer learning techniques of fine-tuning and layer substitution for<br>language modelling of British Sign Language. Our results show improvement in perplexity when<br>using transfer learning with standard stacked LSTM models, trained initially using a large corpus<br>for standard English from the Penn Treebank corpus.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Ethical, Social and Professional Issues Workshop Summary</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Esicsa%2Eac%2Euk%2Fwp-content%2Fuploads%2F2018%2F07%2FSicsa_ethical_social_professional_issues_workshop_simmary%2Epdf&amp;urlhash=Icxp&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;">The Scottish Informatics and Computer Science Alliance (SICSA)</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Jun 1, 2018</span></span></div><div class="experience-description"><div style="outline: none;">Ten socio-technical topics had been prepared for the participants to brainstorm and<br>discuss during the workshop, organised at the Scottish Informatics and Computer Science<br>Alliance (SICSA) PhD Conference in Dundee in 2017<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Towards the Evolution of Indirect Communication for Social Robots</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fieeexplore%2Eieee%2Eorg%2Fdocument%2F7850183&amp;urlhash=-43E&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;">IEEE</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Dec 1, 2016</span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Classification of Phonological Parameters in Sign Languages</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Farxiv%2Eorg%2Fabs%2F2205%2E12072&amp;urlhash=_lf4&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;"></span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Signers compose sign language phonemes that enable communication by combining phonological parameters such as handshape, orientation, location, movement, and non-manual features. Linguistic research often breaks down signs into their constituent parts to study sign languages and often a lot of effort is invested into the annotation of the videos. In this work we show how a single model can be used to recognise the individual phonological parameters within sign languages with the aim of either to assist linguistic annotations or to describe the signs for the sign recognition models. We use Danish Sign Language data set `Ordbog over Dansk Tegnsprog' to generate multiple data sets using pose estimation model, which are then used for training the multi-label Fast R-CNN model to support multi-label modelling. Moreover, we show that there is a significant co-dependence between the orientation and location phonological parameters in the generated data and we incorporate this co-dependence in the model to achieve better performance.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Towards Continuous Sign Language Recognition with Deep Learning</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fhomepages%2Einf%2Eed%2Eac%2Euk%2Fhhastie2%2Fpubs%2Fhumanoids%2Epdf&amp;urlhash=N2Bw&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;">Humanoids Workshop on Creating Meaning With Robot Assistants: The Gap Left by Smart Devices</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Towards Large-Scale Data Mining for Data-Driven Analysis of Sign Languages</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Farxiv%2Eorg%2Fabs%2F2006%2E02120&amp;urlhash=OQLg&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;"></span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">Access to sign language data is far from adequate. We show that it is possible to collect the data from social networking services such as TikTok, Instagram, and YouTube by applying data filtering to enforce quality standards and by discovering patterns in the filtered data, making it easier to analyse and model. Using our data collection pipeline, we collect and examine the interpretation of songs in both the American Sign Language (ASL) and the Brazilian Sign Language (Libras). We explore their differences and similarities by looking at the co-dependence of the orientation and location phonological parameters<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">UbiNomad: A space manager for UbiCollab</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Ezotero%2Eorg%2Fgroups%2Fubicollab%2Fitems%2FitemKey%2FMGDR56AM&amp;urlhash=wUeJ&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company"><span style="outline: none;"></span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;"></span></span></div><div class="experience-description"><div style="outline: none;">One entangled problem in ubiquitous computing is context modelling, how to model locations in a way that includes the environmental details the application needs in a format it can understand, without containing redundant information. In this project report we will present a way to model locations that aims to fulfill the requirements stated above, and still be useful for any location based application. Furthermore we will introduce an application with API that is intended to provide the basic functionality needed by all location based applications. Its functionality is still limited, but we attempted to make an application that could easily be extended, and will discuss how to do so. We also wrote three applications to show how the API could be used and demonstrate that it worked.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r8:" class="collapsible-content"><div class="timeline"><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Winner of I’m an Engineer competion in the Artificial Body Zone category</span></h3><div class="experience-company"><span style="outline: none;">https://about.imanengineer.org.uk/</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Jun 2018</span></span></div><div class="experience-description"><div style="outline: none;">https://twitter.com/IAEGMOOH/status/1010161863924084736</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">James Watt Scholarship</span></h3><div class="experience-company"><span style="outline: none;"></span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Feb 2015</span></span></div><div class="experience-description"><div style="outline: none;"></div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Energetic ideas for the future</span></h3><div class="experience-company"><span style="outline: none;">Equinor</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Aug 2010</span></span></div><div class="experience-description"><div style="outline: none;">A comprehensive 30-page essay on four ideas to generate renewable power by 2050. https://www.equinor.com/news/archive/2010/08/20/20AugEnergy2050<br>https://www.universitetsavisa.no/notiser/studenter-vant-gjev-energipris/184162</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Lithuanian journal where to apply for higher education "Kur Stoti"</span></h3><div class="experience-company"><span style="outline: none;">Kur Stoti</span></div><div class="experience-meta"><span class="experience-duration"><span style="outline: none;">Mar 2009</span></span></div><div class="experience-description"><div style="outline: none;">An interview about higher education prospects for immigrants (in Lithuanian) https://www.kurstoti.lt/s/664/studijos-atsiaurioje-norvegijoje-subrandino-poziuri-i-darba</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":r9:" class="collapsible-content"><div class="skills-grid"><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Bokmål, Norwegian</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">English</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Lithuanian</span></span></div><div class="sortable-item"><span class="skill-badge skill-primary" style="position: relative;"><span style="outline: none;">Russian</span></span></div></div></div></div><div class="section"><div class="collapsible-header"></div><div id=":ra:" class="collapsible-content"><div class="timeline"><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Methods and systems for facilitating authenticating of users</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fpatents%2Egoogle%2Ecom%2Fpatent%2FUS20230195862A1&amp;urlhash=1LWT&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company">Patent Number:  <span class="inline-edit" style="outline: none;">US20230195862A1</span></div><div class="experience-meta"><span class="experience-company"><span style="outline: none;"></span></span><span class="experience-duration">•<span class="inline-edit" style="outline: none;">Issued Jul 23, 2023</span></span></div><div class="experience-description"><div style="outline: none;">Method of facilitating authenticating of users. The method includes initiating, using a processing device, an authentication session for a user for an authentication instance.Method of facilitating authenticating of users. The method includes initiating, using a processing device, an authentication session for a user for an authentication instance.<br>… more</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div><div class="sortable-item"><div class="experience-item"><div class="experience-content"><h3 class="experience-title"><span style="outline: none;">Vertex interpolation in one-shot learning for object classification</span><span style="margin-left: 6px;"><a href="https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fpatents%2Egoogle%2Ecom%2Fpatent%2FUS20220147766A1&amp;urlhash=DsB-&amp;isSdui=true" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: none;">🔗</a></span></h3><div class="experience-company">Patent Number:  <span class="inline-edit" style="outline: none;">US 20220147766A1</span></div><div class="experience-meta"><span class="experience-company"><span style="outline: none;"></span></span><span class="experience-duration">•<span class="inline-edit" style="outline: none;">Issued May 12, 2022</span></span></div><div class="experience-description"><div style="outline: none;">Synthesising training data by augmenting objects of interest in images with the help of vertex interpolation on an overlayed object-dependent smart grid</div></div><div style="display: flex; justify-content: flex-end; margin-top: 8px;"></div></div></div></div></div></div></div></div><div id="DndDescribedBy-0" style="display: none;">
+    To pick up a draggable item, press the space bar.
+    While dragging, use the arrow keys to move the item.
+    Press space again to drop the item in its new position, or press escape to cancel.
+  </div><div id="DndLiveRegion-0" role="status" aria-live="assertive" aria-atomic="true" style="position: fixed; top: 0px; left: 0px; width: 1px; height: 1px; margin: -1px; border: 0px; padding: 0px; overflow: hidden; clip: rect(0px, 0px, 0px, 0px); clip-path: inset(100%); white-space: nowrap;"></div>
+</div>
+
+<!-- Structured CV data for programmatic use (e.g. import into a React app) -->
+<script type="application/json" id="cv-data">
+{
+  "linkedinUrl": "https://www.linkedin.com/in/mocialov/",
+  "name": "Boris Mocialov",
+  "headline": "Data Scientist → Project Lead | Translating Data Insights into Strategic Action",
+  "location": "Oslo, Oslo, Norway",
+  "image": "https://media.licdn.com/dms/image/v2/D4D03AQET5Y6oBHVoDA/profile-displayphoto-scale_400_400/B4DZp3cFhuGwAg-/0/1762940443542?e=1773273600&v=beta&t=SApmfMG-2VymcJb7s2vdaSZ3KCLPSJ0gp__WJFEPW2o",
+  "about": "Technical Project Manager with over five years of experience leading cross-functional teams through the delivery of high-stakes AI and data initiatives. I specialize in bridging the gap between engineering and business, turning complex technical hurdles into clear, actionable roadmaps. My focus is on driving measurable outcomes through Agile delivery and proactive risk management, ensuring we ship on time without losing team momentum.",
+  "aboutHtml": "Technical Project Manager with over five years of experience leading cross-functional teams through the delivery of high-stakes AI and data initiatives. I specialize in bridging the gap between engineering and business, turning complex technical hurdles into clear, actionable roadmaps. My focus is on driving measurable outcomes through Agile delivery and proactive risk management, ensuring we ship on time without losing team momentum.",
+  "experience": [
+    {
+      "title": "Senior Data Scientist",
+      "company": "Crayon Consulting · Full-time",
+      "dates": "May 2025 - Present",
+      "location": "Oslo, Norway · On-site",
+      "description": "",
+      "from": "May 2025",
+      "to": "Present",
+      "skills": []
+    },
+    {
+      "title": "non-exec Artificial Intelligence Director",
+      "company": "Cosmic Wire Inc · Contract",
+      "dates": "Jul 2023 - May 2025",
+      "location": "",
+      "description": "- Advised on AI strategy by balancing \"big picture\" commercial goals with what is actually achievable from a technical perspective.\n\n- Worked across departments to ensure the technical vision stayed in sync with product and commercial needs.\n\n- Defined the priorities and reporting structures that kept AI projects organized and accountable.\n\n- Identified and mitigated delivery risks (data availability, vendor lock-in, infra constraints) early in the lifecycle, preventing costly overruns on key AI projects.",
+      "from": "Jul 2023",
+      "to": "May 2025",
+      "skills": [
+        "Cross-functional Collaborations",
+        "Stakeholder Management",
+        "Agile Methodologies",
+        "Project Management"
+      ]
+    },
+    {
+      "title": "Senior Data Scientist",
+      "company": "Aize · Full-time",
+      "dates": "Mar 2022 - May 2025",
+      "location": "Oslo, Norway · On-site",
+      "description": "- Led end-to-end delivery of data and computer vision initiatives, steering internal teams and client stakeholders from the initial discovery phase through to final delivery.\n\n- Managed the intersection of data science, computer vision, and platform engineering, ensuring cross-functional teams stayed aligned with enterprise client needs.\n\n- Successfully balanced 8+ concurrent enterprise accounts, syncing with Sales, Product, and Customer Success to keep technical milestones on track and meet every deadline.\n\n- Served as the \"technical translator,\" breaking down complex ML/CV challenges into clear, business-focused updates for non-technical leadership.\n\n- Collaborative partner in portfolio management, helping leadership prioritize high-impact work and optimize team capacity across various engagements.",
+      "from": "Mar 2022",
+      "to": "May 2025",
+      "skills": [
+        "Mentoring"
+      ]
+    },
+    {
+      "title": "Academic Lecturer & Technical Instructor",
+      "company": "Kristiania University College, University of Edinburgh, Heriot-Watt University · Contract",
+      "dates": "Sep 2015 - Oct 2023",
+      "location": "",
+      "description": "Various Academic Institutions in Oslo & Edinburgh\n\n(Oct 2021 - Oct 2023) Kristiania University College\n\nDesigned and delivered curriculum for Android Software Engineering with Kotlin, managing the learning roadmap for 100+ students to ensure core competency attainment.\n\nhttps://www.kristiania.no/en/syllabus/school-of-economics-innovation-and-technology/first-cycle-degree/pgr208/android-programming/\n\n(Jun 2017 - Jul 2017) University of Edinburgh through LEAPS programme\n\nTeaching Android programming to pre-university teenagers\n\nhttps://study.ed.ac.uk/undergraduate/access-edinburgh/secondary-school-students/lothians-equal-access-programme-leaps\n\n(Sep 2015 - Oct 2021) Heriot-Watt University and University of Edinburgh\n\nProvided technical mentorship and code reviews for student projects, fostering best practices in software engineering and version control",
+      "from": "Sep 2015",
+      "to": "Oct 2023",
+      "skills": []
+    },
+    {
+      "title": "Machine Learning Lead",
+      "company": "Buyaladdin.com, Inc · Contract",
+      "dates": "Jan 2020 - Jun 2022",
+      "location": "",
+      "description": "- Managed the ML roadmap for an e-commerce platform, aligning technical priorities with product and commercial objectives.\n\n- Built the ML function from the ground up, acting as the bridge between engineering, product, and business stakeholders to get features shipped.\n\n- Modernized development workflow by introducing CI/CD and automated code reviews. This made our entire production cycle more reliable and less prone to manual errors.\n\n- Led a team of 2 engineers, implementing quarterly planning and sprint structures to deliver all major milestones on schedule.\n\n- Owned the redesign of our core recommendation engine. Beyond the tech, I focused on setting the engineering standards and code review.",
+      "from": "Jan 2020",
+      "to": "Jun 2022",
+      "skills": [
+        "Image Processing"
+      ]
+    },
+    {
+      "title": "Research Scientist",
+      "company": "SINTEF Digital · Full-time",
+      "dates": "Apr 2021 - Mar 2022",
+      "location": "Oslo, Norway · On-site",
+      "description": "- Led client-facing R&D and PoC projects, taking full ownership of the lifecycle - from initial scoping and timeline management to final stakeholder handoff.\n\n- Advised enterprise clients, bridging the gap between \"big picture\" business goals and technical feasibility to build actionable product roadmaps.\n\n- Delivered projects on time by proactively managing resource needs and controlling scope changes.\n\n- Collaborated across specialized teams, acting as the \"glue\" between internal researchers, client engineers, and product leadership to resolve technical blockers.\n\n- Served as a gatekeeper for technical risk; my feasibility studies prevented clients from sinking capital into unviable tech, instead pivoting them toward more reliable, high-growth solutions.",
+      "from": "Apr 2021",
+      "to": "Mar 2022",
+      "skills": []
+    },
+    {
+      "title": "Computer Vision Engineer",
+      "company": "ViaTech AS · Contract",
+      "dates": "Nov 2020 - Feb 2022",
+      "location": "",
+      "description": "- Tech Lead for a production CV pipeline, overseeing the architecture and working across hardware and product teams to bring the system to life.\n\n- Built the mobile data processing infrastructure from the ground up, ensuring the technical design aligned with both hardware limits and product goals.\n\n- Streamlined how we handle point clouds, imagery, and laser scans - refining our sync and post-processing workflows to make them faster and more precise.\n\n- Acted as the technical glue between hardware engineering and product stakeholders to keep feature requirements realistic and on track.\n\n- Mentored junior talent in computer vision and production standards, helping a direct report transition into an expanded, high-impact role.\n\n- Owned the technical roadmap, making the tough calls on when to prioritize new algorithms versus fixing technical debt.",
+      "from": "Nov 2020",
+      "to": "Feb 2022",
+      "skills": []
+    },
+    {
+      "title": "Visiting Researcher & R&D Intern",
+      "company": "Adobe & Volkswagen · Contract",
+      "dates": "Sep 2017 - Sep 2018",
+      "location": "",
+      "description": "(Jun 2018 – Sep 2018) Adobe\n\nEngineered a novel machine learning solution for risk assessment, translating abstract theoretical concepts from upper management into a deployable software artifact. Workflow was showcased at Adobe Summit\n\n(Sep 2017 – Oct 2017) Volkswagen Data:Lab\n\nCollaborated in a hackathon-style environment, demonstrating the ability to deliver complex technical MVPs with limited resources",
+      "from": "Sep 2017",
+      "to": "Sep 2018",
+      "skills": []
+    },
+    {
+      "title": "Early Career Engineering",
+      "company": "Infront-X, DEFA, SKM, Petrell · Full-time",
+      "dates": "Nov 2010 - Aug 2015",
+      "location": "Trondheim, Trøndelag, Norway · On-site",
+      "description": "Held various software engineering roles delivering robust solutions for financial, automotive, and energy sectors. Focus on Agile delivery, Android/Mobile development, Delphi, and C++ systems\n\n(Jan 2013 – Aug 2015) Infront-X\n\nResponsible for a portfolio of 3 customer-facing products. Modernized legacy Delphi codebases, improving system maintainability and performance. Improved internal processes for bug tracking and fixes.\n\n(May 2012 – Jan 2013) DEFA\n\nProduct owner for an Android mobile application that enabled remote control features for automotive heating and alarm systems.\n\nhttps://play.google.com/store/apps/details?id=com.est.defa\n\n(May 2011 – Oct 2011) SKM\n\nDelivered Android-based mobile solution, ensuring cross-device compatibility and user-friendly interface design\n\n(Nov 2010 – Feb 2011) Petrell\n\nConducted rigorous code analysis and debugging for C++ / Qt applications, identifying and resolving critical stability issues in legacy software.\n\nhttps://petrell.no/technology-products/vessfire/",
+      "from": "Nov 2010",
+      "to": "Aug 2015",
+      "skills": []
+    }
+  ],
+  "education": [
+    {
+      "school": "The University of Edinburgh",
+      "degree": "Doctor of Philosophy (Ph.D.)",
+      "field": "Robotics and Autonomous Systems",
+      "duration": "2015 - 2020",
+      "description": "",
+      "from": "2015",
+      "to": "2020"
+    },
+    {
+      "school": "Heriot-Watt University",
+      "degree": "Doctor of Philosophy (Ph.D.)",
+      "field": "Robotics and Autonomous Systems",
+      "duration": "2015 - 2019",
+      "description": "",
+      "from": "2015",
+      "to": "2019"
+    },
+    {
+      "school": "Heriot-Watt University",
+      "degree": "Master’s Degree",
+      "field": "Software Engineering",
+      "duration": "2014 - 2015",
+      "description": "",
+      "from": "2014",
+      "to": "2015"
+    },
+    {
+      "school": "Norwegian University of Science and Technology (NTNU)",
+      "degree": "Bachelor's degree",
+      "field": "Computer Science",
+      "duration": "2007 - 2012",
+      "description": "",
+      "from": "2007",
+      "to": "2012"
+    },
+    {
+      "school": "Aalborg University",
+      "degree": "Summer School",
+      "field": "Mobile phone development (Qt)",
+      "duration": "2010 - 2010",
+      "description": "",
+      "from": "2010",
+      "to": "2010"
+    }
+  ],
+  "skills": [
+    "Agile Project Management",
+    "Requirements Management",
+    "University Teaching",
+    "Teaching",
+    "Debt Management",
+    "Service-Level Agreements (SLA)",
+    "System Architecture",
+    "Mentoring",
+    "Scope Management",
+    "Feasibility Studies",
+    "Research and Development (R&D)",
+    "Technology Transfer",
+    "Customer Engagement",
+    "Release Management",
+    "Software Development Life Cycle (SDLC)",
+    "Cross-functional Team Leadership",
+    "Portfolio Management",
+    "Capacity Management",
+    "KPI Dashboards",
+    "Strategic Roadmaps",
+    "KPI Reporting",
+    "Project Governance",
+    "IT Strategy",
+    "Risk Management",
+    "Cross-functional Collaborations",
+    "Leadership",
+    "Stakeholder Management",
+    "Scrum",
+    "Agile Methodologies",
+    "Project Management",
+    "Google Search Console",
+    "Twelve Data API",
+    "Search Engine Optimization (SEO)",
+    "Moving Averages",
+    "Median Absolute Deviation",
+    "PPMT",
+    "Mapillary",
+    "Microsoft Clarity",
+    "tensorflow.js",
+    "umap",
+    "Plotly",
+    "Computer Graphics",
+    "Research",
+    "Python",
+    "Computer Vision",
+    "Deep Learning",
+    "Image Processing",
+    "TensorFlow",
+    "Natural Language Processing (NLP)",
+    "Point Clouds",
+    "Mesh Generation",
+    "Software Development",
+    "Android SDK",
+    "Flask",
+    "Amazon Web Services (AWS)",
+    "Java",
+    "C++",
+    "Kotlin",
+    "Qt",
+    "Delphi",
+    "Embarcadero",
+    "Jetson",
+    "Android Development"
+  ],
+  "certifications": [
+    {
+      "name": "Intermediate Threat Modeling",
+      "issuer": "SecureFlag",
+      "date": "Issued Oct 2025 · Expires Oct 2026",
+      "credentialId": "f95ddfea-8165-4419-857c-8aaefc81c27b",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Esecureflag%2Ecom%2Fs%3Ff95ddfea-8165-4419-857c-8aaefc81c27b&urlhash=_ruE&isSdui=true"
+    },
+    {
+      "name": "DNV Green Belt (Mandatory)",
+      "issuer": "SecureFlag",
+      "date": "Issued Oct 2025 · Expires Oct 2026",
+      "credentialId": "80b32a0a-f292-4ef2-9f76-80ce751dd3c6",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Esecureflag%2Ecom%2Fs%3F80b32a0a-f292-4ef2-9f76-80ce751dd3c6&urlhash=eIXS&isSdui=true"
+    },
+    {
+      "name": "DNV White Belt (Mandatory)",
+      "issuer": "SecureFlag",
+      "date": "Issued Oct 2025 · Expires Oct 2026",
+      "credentialId": "6564d31a-c1b8-4441-a419-121058b3329f",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Esecureflag%2Ecom%2Fs%3F6564d31a-c1b8-4441-a419-121058b3329f&urlhash=ku3k&isSdui=true"
+    }
+  ],
+  "projects": [
+    {
+      "title": "BTFD",
+      "date": "",
+      "description": "Making market timing cool again",
+      "url": "https://mocialov.github.io/buy_the_fucking_dip/",
+      "contextual_skills": [
+        "Moving Averages",
+        "Median Absolute Deviation"
+      ]
+    },
+    {
+      "title": "Mapillary City Explorer",
+      "date": "",
+      "description": "Navigate streets of any city with Mapillary",
+      "url": "",
+      "contextual_skills": [
+        "Microsoft Clarity",
+        "Search Engine Optimization (SEO)"
+      ]
+    },
+    {
+      "title": "Mapillary Street View Simulator",
+      "date": "",
+      "description": "Generate Street View using Mapillary API",
+      "url": "https://mocialov.github.io/mapillary_street_view_simulator/",
+      "contextual_skills": [
+        "Mapillary"
+      ]
+    },
+    {
+      "title": "Mortgage Calculator",
+      "date": "",
+      "description": "",
+      "url": "https://mocialov.github.io/mortgage_calculator/",
+      "contextual_skills": [
+        "PPMT"
+      ]
+    },
+    {
+      "title": "Semantic Document Grouping",
+      "date": "",
+      "description": "",
+      "url": "https://mocialov.github.io/document_topic_map/",
+      "contextual_skills": [
+        "tensorflow.js",
+        "umap"
+      ]
+    }
+  ],
+  "volunteer": [
+    {
+      "role": "Board Member",
+      "organization": "Tekna",
+      "date": "Nov 2022 - Present",
+      "duration": "3 yrs 4 mos",
+      "cause": "",
+      "description": "Big Data"
+    },
+    {
+      "role": "Office Bearer",
+      "organization": "Robotics Society at Heriot-Watt University",
+      "date": "Jun 2017 - Jan 2019",
+      "duration": "1 yr 8 mos",
+      "cause": "Education",
+      "description": "Student society\nhttps://www.facebook.com/HWURoboticsSociety"
+    },
+    {
+      "role": "Accounting volunteer",
+      "organization": "SHRUB: Co-op",
+      "date": "Aug 2018 - Dec 2018",
+      "duration": "5 mos",
+      "cause": "Environment",
+      "description": ""
+    },
+    {
+      "role": "Demonstrator",
+      "organization": "Heriot-Watt University Year of Robotics",
+      "date": "Jan 2017 - Dec 2017",
+      "duration": "1 yr",
+      "cause": "Education",
+      "description": "Promoting Robotics across UK by participating in festivals and demonstrating equipment in schools\n1) https://www.youtube.com/watch?v=zKFtXUi_IBk&list=PLGkkVba61RQp_wgTjrOwxcvDcLsg1fv2x&index=1\n2) https://www.hw.ac.uk/news/articles/2017/pudsey-meets-the-year-of-robotics-student.htm\n3) https://www.hw.ac.uk/uk/research/engage/case-studies/year-of-robotics.htm\n… more"
+    },
+    {
+      "role": "Workshop Lead",
+      "organization": "Scottish Informatics and Computer Science Alliance (SICSA)",
+      "date": "Feb 2017 - Oct 2017",
+      "duration": "9 mos",
+      "cause": "Education",
+      "description": "Workshop \"Ethical, Social, and Professional Issues in Computer Science\" organiser\nhttps://www.sicsa.ac.uk/wp-content/uploads/2018/07/Sicsa_ethical_social_professional_issues_workshop_simmary.pdf\n… more"
+    },
+    {
+      "role": "Local Committee President",
+      "organization": "AIESEC",
+      "date": "Aug 2011 - Nov 2011",
+      "duration": "4 mos",
+      "cause": "",
+      "description": ""
+    }
+  ],
+  "languages": [
+    "Bokmål, Norwegian",
+    "English",
+    "Lithuanian",
+    "Russian"
+  ],
+  "patents": [
+    {
+      "title": "Methods and systems for facilitating authenticating of users",
+      "number": "US20230195862A1",
+      "issuer": "",
+      "date": "Issued Jul 23, 2023",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fpatents%2Egoogle%2Ecom%2Fpatent%2FUS20230195862A1&urlhash=1LWT&isSdui=true",
+      "description": "Method of facilitating authenticating of users. The method includes initiating, using a processing device, an authentication session for a user for an authentication instance.Method of facilitating authenticating of users. The method includes initiating, using a processing device, an authentication session for a user for an authentication instance.\n… more"
+    },
+    {
+      "title": "Vertex interpolation in one-shot learning for object classification",
+      "number": "US 20220147766A1",
+      "issuer": "",
+      "date": "Issued May 12, 2022",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fpatents%2Egoogle%2Ecom%2Fpatent%2FUS20220147766A1&urlhash=DsB-&isSdui=true",
+      "description": "Synthesising training data by augmenting objects of interest in images with the help of vertex interpolation on an overlayed object-dependent smart grid"
+    }
+  ],
+  "timestamp": "2026-02-23T10:17:52.302Z",
+  "publications": [
+    {
+      "title": "Poster: Point Cloud Data Simulation and Modelling with Aize Workspace",
+      "publisher": "",
+      "date": "Jan 9, 2023",
+      "description": "This work takes a look at data models often used in digital twins and presents preliminary results specifically from surface reconstruction and semantic segmentation models trained using simulated data. This work is expected to serve as a ground work for future endeavours in data contextualisation inside a digital twin.\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Eresearchgate%2Enet%2Fpublication%2F367221391_Poster_Point_Cloud_Data_Simulation_and_Modelling_with_Aize_Workspace&urlhash=X7uc&isSdui=true"
+    },
+    {
+      "title": "Towards Sustainable Smart Cities: The Use of the ViaPPS as Road Monitoring System",
+      "publisher": "Springer Nature",
+      "date": "Nov 3, 2022",
+      "description": "Smart cities are an opportunity to overcome the concerns regarding the rapid increase in highly dense populated urban areas. Using ICT, smart cities make urban areas greener, sustainable and at the same time increase their competitiveness and their economic growth. Road networks play a significant role to improve the sustainability of smart cities. Indeed, deteriorated roads cause tied mobility, traffic congestion, CO2 emissions and economic damages to cities and their citizens. To prevent these negative aspects, the road network have to be continuously maintained. A satisfactory road maintenance relies on a continuous monitoring of road network which can be facilitated deploying ICT. This article presents the role of ICT in road monitoring and showcases the ViaPPS: a mobile Pavement Profiling System. The ViaPPS offers accurate and detailed geo-referenced information of the state of the road and the corresponding furniture with the deployment of LiDAR and computer vision techniques. After presenting the capabilities of the ViaPPS, this article discusses the strategy of the smart city of Oslo towards its sustainable development goals and the role of ICT in road maintenance.\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Flink%2Espringer%2Ecom%2Fchapter%2F10%2E1007%2F978-3-031-08815-5_8&urlhash=bY8T&isSdui=true"
+    },
+    {
+      "title": "ViaPPS: A Mobile Pavement Profiling System",
+      "publisher": "",
+      "date": "Jan 1, 2021",
+      "description": "Ensuring safety levels on roads is an imperative task for road authorities. Significant amounts of time and money are spent on performing road inspections every year. In order to ensure efficiency of road inventories, road practitioners are in need of reliable systems that are fast and are designed to comply with high standards at lower costs. To date, the 3D Mobile Mapping Systems is the most efficient, productive and accurate system used during evaluation of pavement inventories. This paper presents ViaPPS, a 3D Mobile Mapping System from ViaTech AS. ViaPPS offers accurate georeferenced data by combining the perception and navigation sensors. This paper showcases results from multiple mobile systems after the harmonization process which is held once a year to evaluate reliability and repeatability of the measurements.\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Farxiv%2Eorg%2Fabs%2F2101%2E11267&urlhash=Neo5&isSdui=true"
+    },
+    {
+      "title": "Transfer Learning for British Sign Language Modelling",
+      "publisher": "Association for Computational Linguistics",
+      "date": "Aug 1, 2018",
+      "description": "Automatic speech recognition and spoken dialogue systems have made great advances through\nthe use of deep machine learning methods. This is partly due to greater computing power but also\nthrough the large amount of data available in common languages, such as English. Conversely,\nresearch in minority languages, including sign languages, is hampered by the severe lack of data.\nThis has led to work on transfer learning methods, whereby a model developed for one language\nis reused as the starting point for a model on a second language, which is less resourced. In\nthis paper, we examine two transfer learning techniques of fine-tuning and layer substitution for\nlanguage modelling of British Sign Language. Our results show improvement in perplexity when\nusing transfer learning with standard stacked LSTM models, trained initially using a large corpus\nfor standard English from the Penn Treebank corpus.\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Faclanthology%2Ecoli%2Euni-saarland%2Ede%2Fpapers%2FW18-3911%2Fw18-3911&urlhash=kHZX&isSdui=true"
+    },
+    {
+      "title": "Ethical, Social and Professional Issues Workshop Summary",
+      "publisher": "The Scottish Informatics and Computer Science Alliance (SICSA)",
+      "date": "Jun 1, 2018",
+      "description": "Ten socio-technical topics had been prepared for the participants to brainstorm and\ndiscuss during the workshop, organised at the Scottish Informatics and Computer Science\nAlliance (SICSA) PhD Conference in Dundee in 2017\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Esicsa%2Eac%2Euk%2Fwp-content%2Fuploads%2F2018%2F07%2FSicsa_ethical_social_professional_issues_workshop_simmary%2Epdf&urlhash=Icxp&isSdui=true"
+    },
+    {
+      "title": "Towards the Evolution of Indirect Communication for Social Robots",
+      "publisher": "IEEE",
+      "date": "Dec 1, 2016",
+      "description": "",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fieeexplore%2Eieee%2Eorg%2Fdocument%2F7850183&urlhash=-43E&isSdui=true"
+    },
+    {
+      "title": "Classification of Phonological Parameters in Sign Languages",
+      "publisher": "",
+      "date": "",
+      "description": "Signers compose sign language phonemes that enable communication by combining phonological parameters such as handshape, orientation, location, movement, and non-manual features. Linguistic research often breaks down signs into their constituent parts to study sign languages and often a lot of effort is invested into the annotation of the videos. In this work we show how a single model can be used to recognise the individual phonological parameters within sign languages with the aim of either to assist linguistic annotations or to describe the signs for the sign recognition models. We use Danish Sign Language data set `Ordbog over Dansk Tegnsprog' to generate multiple data sets using pose estimation model, which are then used for training the multi-label Fast R-CNN model to support multi-label modelling. Moreover, we show that there is a significant co-dependence between the orientation and location phonological parameters in the generated data and we incorporate this co-dependence in the model to achieve better performance.\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Farxiv%2Eorg%2Fabs%2F2205%2E12072&urlhash=_lf4&isSdui=true"
+    },
+    {
+      "title": "Towards Continuous Sign Language Recognition with Deep Learning",
+      "publisher": "Humanoids Workshop on Creating Meaning With Robot Assistants: The Gap Left by Smart Devices",
+      "date": "",
+      "description": "",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fhomepages%2Einf%2Eed%2Eac%2Euk%2Fhhastie2%2Fpubs%2Fhumanoids%2Epdf&urlhash=N2Bw&isSdui=true"
+    },
+    {
+      "title": "Towards Large-Scale Data Mining for Data-Driven Analysis of Sign Languages",
+      "publisher": "",
+      "date": "",
+      "description": "Access to sign language data is far from adequate. We show that it is possible to collect the data from social networking services such as TikTok, Instagram, and YouTube by applying data filtering to enforce quality standards and by discovering patterns in the filtered data, making it easier to analyse and model. Using our data collection pipeline, we collect and examine the interpretation of songs in both the American Sign Language (ASL) and the Brazilian Sign Language (Libras). We explore their differences and similarities by looking at the co-dependence of the orientation and location phonological parameters\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Farxiv%2Eorg%2Fabs%2F2006%2E02120&urlhash=OQLg&isSdui=true"
+    },
+    {
+      "title": "UbiNomad: A space manager for UbiCollab",
+      "publisher": "",
+      "date": "",
+      "description": "One entangled problem in ubiquitous computing is context modelling, how to model locations in a way that includes the environmental details the application needs in a format it can understand, without containing redundant information. In this project report we will present a way to model locations that aims to fulfill the requirements stated above, and still be useful for any location based application. Furthermore we will introduce an application with API that is intended to provide the basic functionality needed by all location based applications. Its functionality is still limited, but we attempted to make an application that could easily be extended, and will discuss how to do so. We also wrote three applications to show how the API could be used and demonstrate that it worked.\n… more",
+      "url": "https://www.linkedin.com/redir/redirect/?url=https%3A%2F%2Fwww%2Ezotero%2Eorg%2Fgroups%2Fubicollab%2Fitems%2FitemKey%2FMGDR56AM&urlhash=wUeJ&isSdui=true"
+    }
+  ],
+  "honors": [
+    {
+      "title": "Winner of I’m an Engineer competion in the Artificial Body Zone category",
+      "issuer": "https://about.imanengineer.org.uk/",
+      "date": "Jun 2018",
+      "associated_with": "The University of Edinburgh",
+      "description": "https://twitter.com/IAEGMOOH/status/1010161863924084736"
+    },
+    {
+      "title": "James Watt Scholarship",
+      "issuer": "",
+      "date": "Feb 2015",
+      "associated_with": "Heriot-Watt University",
+      "description": ""
+    },
+    {
+      "title": "Energetic ideas for the future",
+      "issuer": "Equinor",
+      "date": "Aug 2010",
+      "associated_with": "Norges teknisk-naturvitenskapelige universitet (NTNU)",
+      "description": "A comprehensive 30-page essay on four ideas to generate renewable power by 2050. https://www.equinor.com/news/archive/2010/08/20/20AugEnergy2050\nhttps://www.universitetsavisa.no/notiser/studenter-vant-gjev-energipris/184162"
+    },
+    {
+      "title": "Lithuanian journal where to apply for higher education \"Kur Stoti\"",
+      "issuer": "Kur Stoti",
+      "date": "Mar 2009",
+      "associated_with": "Norges teknisk-naturvitenskapelige universitet (NTNU)",
+      "description": "An interview about higher education prospects for immigrants (in Lithuanian) https://www.kurstoti.lt/s/664/studijos-atsiaurioje-norvegijoje-subrandino-poziuri-i-darba"
+    }
+  ]
+}
+</script>
+</body>
+</html>
