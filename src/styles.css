@@ -511,6 +511,133 @@ details summary:hover {
   margin-top: 10px;
 }
 
+/* ── Skill Picker ──────────────────────────────────────────── */
+.skill-picker {
+  margin-top: 10px;
+  position: relative;
+}
+
+.skill-picker__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.skill-badge--removable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+.skill-badge__remove {
+  all: unset;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  color: #6366f1;
+  margin-left: 2px;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.skill-badge__remove:hover {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.skill-picker__toggle {
+  all: unset;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px dashed #a5b4fc;
+  color: #6366f1;
+  background: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+.skill-picker__toggle:hover {
+  background: #eef2ff;
+  border-color: #6366f1;
+}
+
+.skill-picker__dropdown {
+  position: absolute;
+  z-index: 50;
+  left: 0;
+  top: 100%;
+  margin-top: 4px;
+  width: 300px;
+  max-width: 90vw;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.skill-picker__search {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 10px 10px 0 0;
+  font-size: 13px;
+  outline: none;
+}
+.skill-picker__search:focus {
+  background: #f9fafb;
+}
+
+.skill-picker__list {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.skill-picker__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.skill-picker__option:hover {
+  background: #f3f4f6;
+}
+.skill-picker__option--selected {
+  background: #eef2ff;
+  font-weight: 600;
+  color: #4338ca;
+}
+.skill-picker__option input[type="checkbox"] {
+  accent-color: #6366f1;
+}
+
+.skill-picker__empty {
+  padding: 12px;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+/* Hide picker chrome in print */
+@media print {
+  .skill-picker__toggle,
+  .skill-picker__dropdown { display: none !important; }
+  .skill-badge__remove { display: none !important; }
+}
+
 /* CV: experience skills under each item */
 .cv-experience-skills {
   display: flex;

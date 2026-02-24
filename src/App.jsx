@@ -6,6 +6,7 @@ import DOMPurify from 'dompurify';
 import CV from './components/CV.jsx';
 import CollapsibleSection from './components/CollapsibleSection.jsx';
 import EditableText from './components/EditableText.jsx';
+import SkillPicker from './components/SkillPicker.jsx';
 import './styles.css';
 import { DEBUG } from './config.js';
 
@@ -1215,6 +1216,11 @@ ${JSON.stringify(filteredForPrint, null, 2)}
                                     />
                                   </div>
                                 )}
+                                <SkillPicker
+                                  allSkills={draftData?.skills || []}
+                                  selectedSkills={exp.skills || []}
+                                  onChange={(skills) => updateArrayItem('experience', exp, (it) => ({ ...it, skills }))}
+                                />
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('experience', exp)}
@@ -1412,13 +1418,11 @@ ${JSON.stringify(filteredForPrint, null, 2)}
                                     />
                                   </div>
                                 )}
-                                {Array.isArray(proj.contextual_skills) && proj.contextual_skills.length > 0 && (
-                                  <div className="experience-skills">
-                                    {proj.contextual_skills.map((s, idx) => (
-                                      <span key={idx} className="skill-badge">{s}</span>
-                                    ))}
-                                  </div>
-                                )}
+                                <SkillPicker
+                                  allSkills={draftData?.skills || []}
+                                  selectedSkills={proj.contextual_skills || []}
+                                  onChange={(skills) => updateArrayItem('projects', proj, (it) => ({ ...it, contextual_skills: skills }))}
+                                />
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
                                   <button
                                     onClick={() => excludeItem('projects', proj)}
