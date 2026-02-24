@@ -776,75 +776,102 @@ async function navigateAndExtractDetailsPage(page, profileUrl, detailsType, extr
     }
     await new Promise(r => setTimeout(r, 1000));
 
-    // Scroll to load all content
-    console.log(`   → Scrolling to load all ${detailsType}...`);
-    await page.evaluate(async () => {
-      const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
-      if (scrollContainer) {
+    // Interleaved scroll + "Load more" clicking loop.
+    // LinkedIn skills pages (and other detail pages) may have multiple paginated
+    // sections, each with its own "Load more" button. New buttons only appear after
+    // the page is scrolled down and/or previous buttons are clicked, so we must
+    // interleave scrolling and clicking until the page is fully expanded.
+    console.log(`   → Scrolling & clicking "Load more" to fully load ${detailsType}...`);
+    let totalLoadMoreClicks = 0;
+    let outerRound = 0;
+    const MAX_OUTER_ROUNDS = 30; // safety cap for the whole process
+
+    for (outerRound = 0; outerRound < MAX_OUTER_ROUNDS; outerRound++) {
+      // ── Phase 1: Scroll to the bottom to trigger lazy-loading ──
+      const scrolledNewContent = await page.evaluate(async () => {
+        const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+        if (!scrollContainer) return false;
         let unchangedCount = 0;
         let lastHeight = scrollContainer.scrollHeight;
+        let sawNewContent = false;
 
-        for (let i = 0; i < 20; i++) {
+        for (let i = 0; i < 10; i++) {
           scrollContainer.scrollTop = scrollContainer.scrollHeight;
           await new Promise(r => setTimeout(r, 600));
 
           const newHeight = scrollContainer.scrollHeight;
           if (newHeight === lastHeight) {
             unchangedCount++;
-            if (unchangedCount >= 3) break;
+            if (unchangedCount >= 2) break;
           } else {
             unchangedCount = 0;
+            sawNewContent = true;
           }
           lastHeight = newHeight;
         }
+        return sawNewContent;
+      });
 
-        // Scroll back to top
+      // ── Phase 2: Click ALL visible "Load more" / "Show more results" buttons ──
+      // Keep clicking until no more buttons are found in this round.
+      let clickedThisRound = 0;
+      for (let attempt = 0; attempt < 50; attempt++) {
+        const clicked = await page.evaluate(() => {
+          // Strategy 1: Old layout — scaffold-finite-scroll__load-button
+          const oldBtns = Array.from(document.querySelectorAll('.scaffold-finite-scroll__load-button'));
+          for (const btn of oldBtns) {
+            if (btn.offsetParent !== null) {
+              btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+              btn.click();
+              return true;
+            }
+          }
+          // Strategy 2: New SDUI layout — find button whose text is "Load more" or "Show more results"
+          const allButtons = Array.from(document.querySelectorAll('button'));
+          for (const btn of allButtons) {
+            const text = (btn.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            if ((text === 'load more' || text === 'show more results') && btn.offsetParent !== null) {
+              btn.scrollIntoView({ behavior: 'instant', block: 'center' });
+              btn.click();
+              return true;
+            }
+          }
+          return false;
+        });
+
+        if (!clicked) break;
+        clickedThisRound++;
+        totalLoadMoreClicks++;
+        // Wait for new content to load after clicking
+        await new Promise(r => setTimeout(r, 1500));
+
+        // After clicking, scroll down to reveal any newly-loaded buttons
+        await page.evaluate(async () => {
+          const sc = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+          if (sc) {
+            sc.scrollTop = sc.scrollHeight;
+            await new Promise(r => setTimeout(r, 500));
+          }
+        });
+      }
+
+      // ── Termination: stop when neither scrolling nor clicking produced new content ──
+      if (!scrolledNewContent && clickedThisRound === 0) break;
+    }
+
+    if (totalLoadMoreClicks > 0) {
+      console.log(`   ✓ Clicked "Load more" ${totalLoadMoreClicks} time(s) over ${outerRound + 1} round(s)`);
+    }
+
+    // Final scroll: go all the way down then back up to ensure everything is rendered
+    await page.evaluate(async () => {
+      const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        await new Promise(r => setTimeout(r, 500));
         scrollContainer.scrollTop = 0;
       }
     });
-
-    // Click all "Load more" buttons to reveal paginated content (e.g. skills)
-    console.log(`   → Clicking "Load more" buttons for ${detailsType}...`);
-    let totalLoadMoreClicks = 0;
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const clicked = await page.evaluate(() => {
-        // Strategy 1: Old layout — scaffold-finite-scroll__load-button
-        const oldBtn = document.querySelector('.scaffold-finite-scroll__load-button');
-        if (oldBtn && oldBtn.offsetParent !== null) {
-          oldBtn.scrollIntoView({ behavior: 'instant', block: 'center' });
-          oldBtn.click();
-          return true;
-        }
-        // Strategy 2: New SDUI layout — find button whose text is "Load more" or "Show more results"
-        const allButtons = Array.from(document.querySelectorAll('button'));
-        for (const btn of allButtons) {
-          const text = (btn.textContent || '').trim().toLowerCase();
-          if ((text === 'load more' || text === 'show more results') && btn.offsetParent !== null) {
-            btn.scrollIntoView({ behavior: 'instant', block: 'center' });
-            btn.click();
-            return true;
-          }
-        }
-        return false;
-      });
-
-      if (!clicked) break;
-      totalLoadMoreClicks++;
-      // Wait for new content to load after clicking
-      await new Promise(r => setTimeout(r, 1200));
-    }
-    if (totalLoadMoreClicks > 0) {
-      console.log(`   ✓ Clicked "Load more" ${totalLoadMoreClicks} time(s)`);
-      // Extra scroll after loading more to ensure everything is rendered
-      await page.evaluate(async () => {
-        const scrollContainer = document.querySelector('main, [role="main"], .scaffold-finite-scroll__content');
-        if (scrollContainer) {
-          scrollContainer.scrollTop = scrollContainer.scrollHeight;
-          await new Promise(r => setTimeout(r, 500));
-          scrollContainer.scrollTop = 0;
-        }
-      });
-    }
 
     console.log(`   ✓ ${detailsType} details page loaded`);
 
