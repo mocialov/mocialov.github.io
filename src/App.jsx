@@ -265,6 +265,21 @@ function App() {
     skills: isSectionHidden('skills') ? [] : (draftData.skills || []).filter(skill => !isExcluded('skills', skill))
   } : null;
 
+  // Human-readable section headers (kept in sync with the CollapsibleSection titles)
+  const SECTION_HEADERS = {
+    summary: 'Professional Summary',
+    skills: '🛠️ Core Skills & Expertise',
+    experience: '💼 Professional Experience',
+    education: '🎓 Education',
+    certifications: '📜 Certifications & Credentials',
+    projects: '🚀 Projects',
+    volunteer: '❤️ Volunteering',
+    publications: '📚 Publications',
+    honors: '🏆 Honors & Awards',
+    languages: '🌐 Languages',
+    patents: '💡 Patents',
+  };
+
   const filteredForPrint = draftData ? {
     ...draftData,
     // if summary is hidden, drop it from print
@@ -279,7 +294,10 @@ function App() {
     honors: filteredForScreen.honors,
     languages: filteredForScreen.languages,
     patents: filteredForScreen.patents,
-    skills: filteredForScreen.skills
+    skills: filteredForScreen.skills,
+    // Include section headers and ordering so exported HTML preserves them
+    sectionHeaders: SECTION_HEADERS,
+    sectionOrder: sectionOrder.filter(key => !isSectionHidden(key)),
   } : null;
 
   // Export the full visual CV (with graphics/colors) as a self-contained HTML file
@@ -296,7 +314,20 @@ function App() {
     // Deep-clone so we can strip interactive elements without touching the live DOM
     const clone = resultEl.cloneNode(true);
 
-    // Remove all buttons, drag handles, editable indicators, reorder UI, logs, details (JSON/print)
+    // Convert collapsible-toggle buttons into static headings so section titles survive button removal
+    clone.querySelectorAll('button.collapsible-toggle').forEach(btn => {
+      const titleSpan = btn.querySelector('.section-title');
+      if (titleSpan) {
+        const h2 = document.createElement('h2');
+        h2.className = 'section-title';
+        h2.innerHTML = titleSpan.innerHTML;
+        btn.replaceWith(h2);
+      } else {
+        btn.remove();
+      }
+    });
+
+    // Remove all remaining buttons, drag handles, editable indicators, reorder UI, logs, details (JSON/print)
     clone.querySelectorAll(
       'button, .icon-button, .drag-handle, .cv-actions, .sortable-item > .drag-handle, ' +
       '.collapsible-actions, .button-minimal, .button, .logs-panel, ' +
@@ -1003,7 +1034,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
                 <div className="section-order" style={{ marginBottom: 16 }}>
                   {[...new Set(sectionOrder)].map((secId) => (
                     <SortableRow key={secId} id={secId}>
-                      <span className="section-chip">{secId}</span>
+                      <span className="section-chip">{SECTION_HEADERS[secId] || secId}</span>
                     </SortableRow>
                   ))}
                 </div>
@@ -1018,7 +1049,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (typeof draftData.about !== 'undefined' && !isSectionHidden('summary')) {
                 sectionElements.summary = (
                   <CollapsibleSection
-                    title={<>Professional Summary</>}
+                    title={<>{SECTION_HEADERS.summary}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('summary')}
@@ -1045,7 +1076,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.skills && filteredForScreen.skills.length > 0 && !isSectionHidden('skills')) {
                 sectionElements.skills = (
                   <CollapsibleSection
-                    title={<>🛠️ Core Skills & Expertise</>}
+                    title={<>{SECTION_HEADERS.skills}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('skills')}
@@ -1129,7 +1160,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.experience && filteredForScreen.experience.length > 0 && !isSectionHidden('experience')) {
                 sectionElements.experience = (
                   <CollapsibleSection
-                    title={<>💼 Professional Experience</>}
+                    title={<>{SECTION_HEADERS.experience}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('experience')}
@@ -1243,7 +1274,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.education && filteredForScreen.education.length > 0 && !isSectionHidden('education')) {
                 sectionElements.education = (
                   <CollapsibleSection
-                    title={<>🎓 Education</>}
+                    title={<>{SECTION_HEADERS.education}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('education')}
@@ -1312,7 +1343,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.certifications && filteredForScreen.certifications.length > 0 && !isSectionHidden('certifications')) {
                 sectionElements.certifications = (
                   <CollapsibleSection
-                    title={<>📜 Certifications & Credentials</>}
+                    title={<>{SECTION_HEADERS.certifications}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('certifications')}
@@ -1370,7 +1401,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.projects && filteredForScreen.projects.length > 0 && !isSectionHidden('projects')) {
                 sectionElements.projects = (
                   <CollapsibleSection
-                    title={<>🚀 Projects</>}
+                    title={<>{SECTION_HEADERS.projects}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('projects')}
@@ -1445,7 +1476,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.volunteer && filteredForScreen.volunteer.length > 0 && !isSectionHidden('volunteer')) {
                 sectionElements.volunteer = (
                   <CollapsibleSection
-                    title={<>❤️ Volunteering</>}
+                    title={<>{SECTION_HEADERS.volunteer}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('volunteer')}
@@ -1538,7 +1569,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.publications && filteredForScreen.publications.length > 0 && !isSectionHidden('publications')) {
                 sectionElements.publications = (
                   <CollapsibleSection
-                    title={<>📚 Publications</>}
+                    title={<>{SECTION_HEADERS.publications}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('publications')}
@@ -1615,7 +1646,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.honors && filteredForScreen.honors.length > 0 && !isSectionHidden('honors')) {
                 sectionElements.honors = (
                   <CollapsibleSection
-                    title={<>🏆 Honors & Awards</>}
+                    title={<>{SECTION_HEADERS.honors}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('honors')}
@@ -1687,7 +1718,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.languages && filteredForScreen.languages.length > 0 && !isSectionHidden('languages')) {
                 sectionElements.languages = (
                   <CollapsibleSection
-                    title={<>🌐 Languages</>}
+                    title={<>{SECTION_HEADERS.languages}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('languages')}
@@ -1736,7 +1767,7 @@ ${JSON.stringify(filteredForPrint, null, 2)}
               if (filteredForScreen && filteredForScreen.patents && filteredForScreen.patents.length > 0 && !isSectionHidden('patents')) {
                 sectionElements.patents = (
                   <CollapsibleSection
-                    title={<>💡 Patents</>}
+                    title={<>{SECTION_HEADERS.patents}</>}
                     actions={(
                       <button
                         onClick={() => hideSection('patents')}
