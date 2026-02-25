@@ -119,18 +119,6 @@ export default function App() {
   // CV loaded → render it
   return (
     <div className="viewer-root">
-      {/* Toolbar */}
-      <div className="viewer-toolbar">
-        <div className="viewer-toolbar__actions">
-          <button
-            className="viewer-btn"
-            onClick={() => window.print()}
-          >
-            🖨️ Print
-          </button>
-        </div>
-      </div>
-
       {/* Injected styles from the exported HTML */}
       <style dangerouslySetInnerHTML={{ __html: cvStyles }} />
 
