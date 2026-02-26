@@ -202,6 +202,184 @@ details summary:hover { background: rgb(243, 244, 246); }
 .sortable-item { display: flex; align-items: center; width: 100%; }
 .collapsible-toggle { cursor: default; }
 .chevron { display: none; }
+
+/* ====== Mobile-friendly overrides ====== */
+@media (max-width: 768px) {
+  .container {
+    width: 100% !important;
+    padding: 16px !important;
+    max-width: 100% !important;
+  }
+  .profile-header {
+    flex-direction: column;
+    text-align: center;
+    padding: 16px;
+    gap: 16px;
+  }
+  .profile-photo {
+    width: 90px;
+    height: 90px;
+  }
+  .profile-name {
+    font-size: 24px;
+  }
+  .profile-headline {
+    font-size: 15px;
+  }
+  .section {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+  }
+  .section-title {
+    font-size: 18px;
+  }
+  .about-text {
+    padding: 14px;
+    font-size: 14px;
+  }
+  .timeline {
+    padding-left: 16px;
+  }
+  .timeline::before {
+    left: 4px;
+  }
+  .experience-content {
+    padding: 14px;
+  }
+  .experience-title {
+    font-size: 16px;
+  }
+  .experience-company {
+    font-size: 14px;
+  }
+  .experience-meta {
+    font-size: 12px;
+    flex-wrap: wrap;
+  }
+  .experience-description {
+    font-size: 13px;
+  }
+  .experience-item {
+    margin-bottom: 20px;
+  }
+  .skills-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+  }
+  .skill-badge {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+  .skill-badge--removable {
+    font-size: 11px !important;
+    padding: 3px 6px !important;
+  }
+  .certifications-grid {
+    grid-template-columns: 1fr;
+  }
+  .education-item {
+    padding: 14px;
+  }
+  .education-school {
+    font-size: 16px;
+  }
+  .education-degree {
+    font-size: 14px;
+  }
+  .cv-item__line,
+  .cv-item__after {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .cv-item__date--lead {
+    padding-right: 0;
+  }
+  .cv-cert-list li {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .cv-list {
+    margin-left: 0;
+  }
+  .cv-skills {
+    margin-left: 0;
+  }
+  .cv-name {
+    font-size: 22px;
+  }
+  .cv-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .cv-page {
+    padding: 14px;
+  }
+  .skill-picker__badges {
+    gap: 4px;
+  }
+  .experience-skills {
+    gap: 4px;
+  }
+  .cv-experience-skills {
+    gap: 4px;
+  }
+  h2 {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 10px !important;
+  }
+  .profile-header {
+    padding: 12px;
+    gap: 12px;
+    border-radius: 8px;
+  }
+  .profile-photo {
+    width: 72px;
+    height: 72px;
+    border-width: 3px;
+  }
+  .profile-name {
+    font-size: 20px;
+  }
+  .profile-headline {
+    font-size: 14px;
+  }
+  .profile-location {
+    font-size: 13px;
+  }
+  .section-title {
+    font-size: 16px;
+  }
+  .experience-content {
+    padding: 10px;
+  }
+  .experience-title {
+    font-size: 15px;
+  }
+  .timeline {
+    padding-left: 12px;
+  }
+  .skills-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+  .about-text {
+    padding: 10px;
+    font-size: 13px;
+  }
+  .button-group {
+    flex-direction: column;
+  }
+  .button {
+    width: 100%;
+    font-size: 14px;
+    padding: 12px;
+  }
+}
 </style>
 </head>
 <body>
