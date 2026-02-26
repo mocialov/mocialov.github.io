@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Root / CV site -->
+  <url>
+    <loc>https://mocialov.github.io/</loc>
+    <lastmod>2026-02-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+
+  <!-- Buy the Fucking Dip -->
+  <url>
+    <loc>https://mocialov.github.io/buy_the_fucking_dip/</loc>
+    <lastmod>2026-02-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Mapillary Street View Simulator -->
+  <url>
+    <loc>https://mocialov.github.io/mapillary_street_view_simulator/</loc>
+    <lastmod>2026-02-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Mortgage Calculator -->
+  <url>
+    <loc>https://mocialov.github.io/mortgage_calculator/</loc>
+    <lastmod>2026-02-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- Document Topic Map -->
+  <url>
+    <loc>https://mocialov.github.io/document_topic_map/</loc>
+    <lastmod>2026-02-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>
