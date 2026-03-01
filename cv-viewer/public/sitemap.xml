@@ -16,9 +16,9 @@
     <priority>0.8</priority>
   </url>
 
-  <!-- Mapillary Street View Simulator -->
+  <!-- Mapillary City Explorer -->
   <url>
-    <loc>https://mocialov.github.io/mapillary_street_view_simulator/</loc>
+    <loc>https://mocialov.github.io/city_explorer_with_mapillary/</loc>
     <lastmod>2026-02-26</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
@@ -36,6 +36,14 @@
   <url>
     <loc>https://mocialov.github.io/document_topic_map/</loc>
     <lastmod>2026-02-26</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- GoAuksjon – Modern hub for the Norwegian market with interactive charts and global search -->
+  <url>
+    <loc>https://mocialov.github.io/goauksjon/</loc>
+    <lastmod>2026-03-01</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
